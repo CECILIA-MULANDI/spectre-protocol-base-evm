@@ -15,6 +15,10 @@ export type DKIMFields = {
   canonicalHeader: Buffer;
   // RSA-sig bytes
   signatureBytes: Buffer;
+  // position of dkim-signature field in canonicalHeader
+  dkimHeaderSequence: Sequence;
+  // byte offset of the base64 bh= value within canonicalHeader
+  bodyHashIndex: number;
 };
 
 export type ParsedEmail = {
@@ -22,4 +26,6 @@ export type ParsedEmail = {
   dkim: DKIMFields;
   fromHeaderSequence: Sequence;
   fromAddressSequence: Sequence;
+  // DKIM relaxed-canonicalized body bytes
+  canonicalBody: Buffer;
 };

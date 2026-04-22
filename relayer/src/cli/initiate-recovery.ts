@@ -1,8 +1,6 @@
 /**
  * Initiate recovery on SpectreRegistry.
  *
- * Usage: tsx initiate-recovery.ts <email.eml> <new-owner-address> <worldid-proof.json>
- *
  * Flow:
  *   1. Parse email, fetch DKIM key, build witness
  *   2. Generate UltraHonk proof via nargo + bb
@@ -20,7 +18,7 @@ import { generateProof, verifyProof } from "../prover/prover.js";
 
 const [emlPath, newOwner, worldIdPath] = process.argv.slice(2);
 if (!emlPath || !newOwner || !worldIdPath) {
-  console.error("usage: initiate-recovery.ts <email.eml> <new-owner-address> <worldid-proof.json>");
+  console.error("error: email path, new-owner address, and worldid-proof.json are required");
   process.exit(1);
 }
 
@@ -33,12 +31,12 @@ if (!config.agentOwnerAddress) {
 const { publicClient, walletClient } = buildClients(config);
 
 // Fetch current nonce from registry
-const record = await publicClient.readContract({
+const record = (await publicClient.readContract({
   address: config.registryAddress,
   abi: REGISTRY_ABI,
   functionName: "getRecord",
   args: [config.agentOwnerAddress],
-}) as { nonce: bigint };
+})) as { nonce: bigint };
 
 const nonce = record.nonce;
 console.log("current nonce:", nonce.toString());
@@ -46,8 +44,11 @@ console.log("current nonce:", nonce.toString());
 // Build and generate email proof
 const rawEml = await readFile(emlPath);
 const parsed = await parseEmail(rawEml);
-const dkimKey = await fetchDKIMPublicKey(parsed.domain, parsed.selector);
-const witness = buildWitness(parsed, dkimKey, newOwner as `0x${string}`, nonce);
+const dkimKey = await fetchDKIMPublicKey(
+  parsed.dkim.selector,
+  parsed.dkim.domain
+);
+const witness = buildWitness(parsed, dkimKey, BigInt(newOwner), nonce);
 
 console.log("generating proof...");
 const proofResult = await generateProof(witness);
@@ -62,8 +63,13 @@ console.log("proof valid");
 
 // Format proof for Solidity verifier
 const proofBytes = ("0x" + proofResult.proof.toString("hex")) as `0x${string}`;
-const publicInputs = Array.from({ length: proofResult.publicInputs.length / 32 }, (_, i) =>
-  ("0x" + proofResult.publicInputs.subarray(i * 32, (i + 1) * 32).toString("hex")) as `0x${string}`
+const publicInputs = Array.from(
+  { length: proofResult.publicInputs.length / 32 },
+  (_, i) =>
+    ("0x" +
+      proofResult.publicInputs
+        .subarray(i * 32, (i + 1) * 32)
+        .toString("hex")) as `0x${string}`
 );
 
 // Load World ID proof (generated externally via World ID SDK or World App)
@@ -80,7 +86,16 @@ const hash = await walletClient.writeContract({
     publicInputs,
     BigInt(worldId.root),
     BigInt(worldId.nullifier_hash),
-    worldId.proof as [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint],
+    worldId.proof as [
+      bigint,
+      bigint,
+      bigint,
+      bigint,
+      bigint,
+      bigint,
+      bigint,
+      bigint
+    ],
   ],
 });
 

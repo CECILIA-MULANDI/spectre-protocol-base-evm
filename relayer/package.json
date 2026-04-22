@@ -6,16 +6,30 @@
     "register": "tsx src/cli/register.ts",
     "initiate": "tsx src/cli/initiate-recovery.ts",
     "cancel": "tsx src/cli/cancel-recovery.ts",
-    "execute": "tsx src/cli/execute-recovery.ts"
+    "execute": "tsx src/cli/execute-recovery.ts",
+    "set-backup": "tsx src/cli/set-backup-wallet.ts",
+    "initiate-backup": "tsx src/cli/initiate-backup-recovery.ts",
+    "set-guardians": "tsx src/cli/set-guardians.ts",
+    "approve-guardian": "tsx src/cli/approve-guardian-recovery.ts",
+    "check": "tsx src/cli/check-state.ts",
+    "recover-link": "tsx src/cli/recover-link.ts",
+    "server": "tsx src/server.ts"
   },
   "dependencies": {
     "@noble/curves": "1.9.7",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/mailparser": "^3.4.6",
+    "@types/multer": "^2.1.0",
+    "@worldcoin/idkit-server": "^1.1.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "mailparser": "^3.9.4",
+    "multer": "^2.1.1",
     "viem": "^2.21.0"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.6.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }

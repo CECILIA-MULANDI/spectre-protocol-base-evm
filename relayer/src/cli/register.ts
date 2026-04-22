@@ -1,8 +1,6 @@
 /**
  * Register an agent recovery config on SpectreRegistry.
  *
- * Usage: tsx register.ts <email-address> <timelock-blocks>
- *
  * Computes SHA256(email_address) off-chain and calls SpectreRegistry.register().
  */
 import { createHash } from "crypto";
@@ -13,7 +11,7 @@ import { REGISTRY_ABI } from "./abi.js";
 
 const [emailAddress, timelockArg] = process.argv.slice(2);
 if (!emailAddress || !timelockArg) {
-  console.error("usage: register.ts <email-address> <timelock-blocks>");
+  console.error("error: email-address and timelock-blocks are required");
   process.exit(1);
 }
 
@@ -22,7 +20,8 @@ const timelockBlocks = BigInt(timelockArg);
 const config = await loadConfig();
 const { publicClient, walletClient, account } = buildClients(config);
 
-const emailHash = "0x" + createHash("sha256").update(emailAddress).digest("hex") as `0x${string}`;
+const emailHash = ("0x" +
+  createHash("sha256").update(emailAddress).digest("hex")) as `0x${string}`;
 console.log("email hash:", emailHash);
 
 const hash = await walletClient.writeContract({

@@ -1,7 +1,5 @@
 /**
  * Execute a recovery after the timelock has elapsed. Callable by anyone.
- *
- * Usage: tsx execute-recovery.ts
  */
 import { loadConfig } from "./config.js";
 import { buildClients } from "./network.js";
@@ -16,21 +14,21 @@ if (!config.agentOwnerAddress) {
 const { publicClient, walletClient } = buildClients(config);
 
 // Check timelock status before attempting
-const status = await publicClient.readContract({
+const [pending, pendingOwner, executeAfterBlock] = await publicClient.readContract({
   address: config.registryAddress,
   abi: REGISTRY_ABI,
   functionName: "recoveryStatus",
   args: [config.agentOwnerAddress],
-}) as { pending: boolean; pendingOwner: `0x${string}`; executeAfterBlock: bigint };
+}) as unknown as [boolean, `0x${string}`, bigint, number];
 
-if (!status.pending) {
+if (!pending) {
   console.error("no pending recovery found");
   process.exit(1);
 }
 
 const currentBlock = await publicClient.getBlockNumber();
-if (currentBlock < status.executeAfterBlock) {
-  console.log(`timelock not elapsed. current block: ${currentBlock}, execute after: ${status.executeAfterBlock}`);
+if (currentBlock < executeAfterBlock) {
+  console.log(`timelock not elapsed. current block: ${currentBlock}, execute after: ${executeAfterBlock}`);
   process.exit(1);
 }
 
@@ -43,4 +41,4 @@ const hash = await walletClient.writeContract({
 
 console.log("execute tx submitted:", hash);
 await publicClient.waitForTransactionReceipt({ hash });
-console.log("recovery executed. new owner:", status.pendingOwner);
+console.log("recovery executed. new owner:", pendingOwner);

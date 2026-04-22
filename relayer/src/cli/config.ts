@@ -9,6 +9,7 @@ export type Config = {
   rpcUrl: string;
   registryAddress: `0x${string}`;
   verifierAddress: `0x${string}`;
+  worldIdRouter: `0x${string}`;
   ownerPrivateKey: `0x${string}`;
   // populated after register
   agentOwnerAddress?: `0x${string}`;

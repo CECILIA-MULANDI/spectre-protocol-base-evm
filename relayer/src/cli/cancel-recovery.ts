@@ -1,7 +1,5 @@
 /**
  * Cancel a pending recovery. Only callable by the current owner.
- *
- * Usage: tsx cancel-recovery.ts
  */
 import { loadConfig } from "./config.js";
 import { buildClients } from "./network.js";
