@@ -7,3 +7,4 @@ contracts/out/
 contracts/cache/
 circuits/target/
 docs/
+*.eml
