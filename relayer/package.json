@@ -1,0 +1,22 @@
+{
+  "name": "@spectre-protocol/relayer",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "register": "tsx src/cli/register.ts",
+    "initiate": "tsx src/cli/initiate-recovery.ts",
+    "cancel": "tsx src/cli/cancel-recovery.ts",
+    "execute": "tsx src/cli/execute-recovery.ts"
+  },
+  "dependencies": {
+    "@noble/curves": "1.9.7",
+    "@types/mailparser": "^3.4.6",
+    "mailparser": "^3.9.4",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
