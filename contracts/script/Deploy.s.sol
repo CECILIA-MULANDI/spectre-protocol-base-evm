@@ -8,22 +8,19 @@ import "../src/SpectreRegistry.sol";
 /// @notice Deploys UltraVerifier then SpectreRegistry.
 ///
 /// Required env vars:
-///   DEPLOYER_PRIVATE_KEY  — deployer private key (0x-prefixed)
-///   WORLD_ID_ROUTER       — World ID router address on the target network
-///   WORLD_ID_GROUP_ID     — World ID group ID (1 for Orb-verified on testnet)
+///   DEPLOYER_PRIVATE_KEY          — deployer private key (0x-prefixed)
+///   WORLD_ID_ROUTER               — World ID router address on the target network
+///   WORLD_ID_GROUP_ID             — World ID group ID (1 for Device tier)
+///   WORLD_ID_EXTERNAL_NULLIFIER   — derived from app_id + action via IDKit SDK
+///                                   run: cd world-id-ui && npx tsx src/nullifier.ts
 ///
 /// Base Sepolia World ID router: 0x42FF98C4E85212a5D31358ACbFe76a621b784Fac
-///
-/// Usage (dry-run):
-///   forge script script/Deploy.s.sol --rpc-url base_sepolia
-///
-/// Usage (broadcast):
-///   forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --verify
 contract Deploy is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address worldIdRouter = vm.envAddress("WORLD_ID_ROUTER");
         uint256 worldIdGroupId = vm.envUint("WORLD_ID_GROUP_ID");
+        uint256 externalNullifier = vm.envUint("WORLD_ID_EXTERNAL_NULLIFIER");
 
         vm.startBroadcast(deployerKey);
 
@@ -35,7 +32,8 @@ contract Deploy is Script {
         SpectreRegistry registry = new SpectreRegistry(
             address(verifier),
             worldIdRouter,
-            worldIdGroupId
+            worldIdGroupId,
+            externalNullifier
         );
         console.log("SpectreRegistry deployed at: ", address(registry));
         console.log("externalNullifier:           ", registry.externalNullifier());
