@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectre Protocol — EVM (Base)</title>
+  <meta name="description"
+    content="Zero-knowledge account recovery for AI agents on Base. DKIM email proofs, World ID verification, and timelocked key rotation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --black: #000000;
+      --white: #ffffff;
+      --blue: #5aabf0;
+      --blue-dim: rgba(90, 171, 240, 0.15);
+      --blue-border: rgba(90, 171, 240, 0.25);
+      --surface: #0a0a0a;
+      --surface2: #111111;
+      --border: #1a1a1a;
+      --muted: #666666;
+      --text: #e8e8e8;
+      --green: #4ade80;
+      --yellow: #fbbf24;
+      --red: #f87171;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 18px;
+    }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--black);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(16px);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-logo-text {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--white);
+    }
+
+    .nav-chain {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--blue);
+      background: var(--blue-dim);
+      border: 1px solid var(--blue-border);
+      padding: 0.15rem 0.5rem;
+      border-radius: 2px;
+      margin-left: 0.5rem;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .nav-links a {
+      font-size: 0.85rem;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--white);
+    }
+
+    .nav-cta {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--black) !important;
+      background: var(--white);
+      padding: 0.4rem 1.1rem;
+      border-radius: 4px;
+      transition: background 0.2s, color 0.2s !important;
+    }
+
+    .nav-cta:hover {
+      background: var(--blue) !important;
+      color: var(--black) !important;
+    }
+
+    /* ── Sections ── */
+    section {
+      padding: 6rem 2rem;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .container-narrow {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    /* ── Hero ── */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8rem 2rem 6rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% -10%, rgba(90, 171, 240, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 30% at 80% 80%, rgba(90, 171, 240, 0.04) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      color: var(--blue);
+      border: 1px solid var(--blue-border);
+      background: var(--blue-dim);
+      padding: 0.35rem 0.85rem;
+      border-radius: 100px;
+      margin-bottom: 2rem;
+    }
+
+    .hero-tag::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--blue);
+      border-radius: 50%;
+    }
+
+    h1 {
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      color: var(--white);
+      margin-bottom: 1.5rem;
+    }
+
+    h1 .accent {
+      color: var(--blue);
+    }
+
+    .hero-sub {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.7;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.7rem 1.6rem;
+      border-radius: 4px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .btn-white {
+      background: var(--white);
+      color: var(--black);
+    }
+
+    .btn-white:hover {
+      background: var(--blue);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--muted);
+      color: var(--white);
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 3rem;
+      margin-top: 4rem;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.02em;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0 2rem;
+    }
+
+    /* ── Section labels ── */
+    .section-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 1rem;
+    }
+
+    h2 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--white);
+      line-height: 1.15;
+    }
+
+    .section-desc {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-top: 0.75rem;
+      line-height: 1.7;
+    }
+
+    /* ── Recovery modes ── */
+    .modes-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+
+    .mode-card {
+      background: var(--black);
+      padding: 2rem;
+    }
+
+    .mode-icon {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .mode-card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 0.5rem;
+    }
+
+    .mode-card p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .mode-tag {
+      display: inline-block;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 2px;
+      margin-top: 0.75rem;
+    }
+
+    .mode-tag-zk {
+      background: rgba(90, 171, 240, 0.1);
+      color: var(--blue);
+      border: 1px solid var(--blue-border);
+    }
+
+    .mode-tag-simple {
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--green);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+    }
+
+    /* ── Steps ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+
+    .step {
+      background: var(--black);
+      padding: 2rem;
+    }
+
+    .step-num {
+      font-family: 'Space Mono', monospace;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--border);
+      line-height: 1;
+      margin-bottom: 1.2rem;
+    }
+
+    .step h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 0.5rem;
+    }
+
+    .step p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* ── Flow ── */
+    .flow-block {
+      margin-top: 3rem;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .flow-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .flow-body {
+      padding: 1.5rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 2;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .flow-body .hl {
+      color: var(--blue);
+    }
+
+    .flow-body .ok {
+      color: var(--green);
+    }
+
+    .flow-body .warn {
+      color: var(--yellow);
+    }
+
+    /* ── Architecture ── */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+
+    .arch-card {
+      background: var(--black);
+      padding: 2rem;
+    }
+
+    .arch-card h3 {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--blue);
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.02em;
+    }
+
+    .arch-card p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .arch-card code {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.72rem;
+      background: var(--surface2);
+      padding: 0.15rem 0.4rem;
+      border-radius: 2px;
+      color: var(--text);
+    }
+
+    /* ── CLI ── */
+    .cli-table {
+      margin-top: 2rem;
+      border: 1px solid var(--border);
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .cli-table th {
+      text-align: left;
+      padding: 0.75rem 1.25rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .cli-table td {
+      padding: 0.85rem 1.25rem;
+      font-size: 0.78rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cli-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cli-table td:first-child {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--blue);
+      white-space: nowrap;
+    }
+
+    .cli-table td:last-child {
+      color: var(--muted);
+    }
+
+    /* ── Status / phases ── */
+    .phases {
+      margin-top: 3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .phase {
+      background: var(--black);
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .phase-left {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .phase-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--white);
+      margin-bottom: 0.3rem;
+    }
+
+    .phase-desc {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .badge {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      padding: 0.25rem 0.7rem;
+      border-radius: 2px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+    }
+
+    .badge-done {
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--green);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+    }
+
+    .badge-next {
+      background: rgba(90, 171, 240, 0.1);
+      color: var(--blue);
+      border: 1px solid var(--blue-border);
+    }
+
+    /* ── Contracts table ── */
+    .contracts-table {
+      margin-top: 2rem;
+      border: 1px solid var(--border);
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .contracts-table th {
+      text-align: left;
+      padding: 0.75rem 1.25rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .contracts-table td {
+      padding: 0.85rem 1.25rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.72rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .contracts-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .contracts-table td:first-child {
+      color: var(--blue);
+      white-space: nowrap;
+    }
+
+    .contracts-table td:last-child {
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    /* ── API ── */
+    .api-endpoint {
+      border: 1px solid var(--border);
+      margin-top: 1rem;
+      background: var(--black);
+    }
+
+    .api-endpoint:first-of-type {
+      margin-top: 2rem;
+    }
+
+    .api-header {
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .api-method {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 2px;
+      background: var(--blue-dim);
+      color: var(--blue);
+      border: 1px solid var(--blue-border);
+    }
+
+    .api-path {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--white);
+    }
+
+    .api-desc {
+      padding: 0.75rem 1.25rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* ── CTA ── */
+    #cta {
+      text-align: center;
+    }
+
+    #cta h2 {
+      margin-bottom: 1rem;
+    }
+
+    #cta p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .footer-logo span {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    footer p {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    footer a {
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+
+    footer a:hover {
+      color: var(--white);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      nav {
+        padding: 0 1rem;
+      }
+
+      .nav-links a:not(.nav-cta) {
+        display: none;
+      }
+
+      section {
+        padding: 4rem 1.25rem;
+      }
+
+      .divider {
+        margin: 0 1.25rem;
+      }
+
+      .hero-stats {
+        gap: 2rem;
+      }
+
+      .modes-grid,
+      .steps,
+      .arch-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .phase {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-logo">
+      <span class="nav-logo-text">Spectre</span>
+    </div>
+    <div class="nav-links">
+      <a href="#modes">Recovery</a>
+      <a href="#how">How it works</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#contracts">Contracts</a>
+      <a href="https://github.com/cecilia-mulandi/spectre-evm" target="_blank" rel="noopener" class="nav-cta">GitHub
+        &rarr;</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section id="hero">
+    <div class="hero-bg"></div>
+    <div class="container-narrow" style="position:relative">
+      <div class="hero-tag">Testnet Live</div>
+      <h1>
+        Key recovery<br />for <span class="accent">AI agents</span>
+      </h1>
+      <p class="hero-sub">
+        When an agent key is compromised, Spectre recovers it using
+        ZK email proofs, World ID verification, and a time-locked
+        safety window &mdash; no trusted third party, no exposed secrets.
+      </p>
+      <p style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);margin-bottom:2rem">
+        Supported chains: <span style="color:var(--blue)">Base Sepolia</span>
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/cecilia-mulandi/spectre-evm" target="_blank" rel="noopener"
+          class="btn btn-white">View on GitHub</a>
+        <a href="#how" class="btn btn-ghost">How it works</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="stat-value">3</div>
+          <div class="stat-label">Recovery modes</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">ZK</div>
+          <div class="stat-label">DKIM email proofs</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">World ID</div>
+          <div class="stat-label">Human verification</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Trusted parties</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Recovery modes -->
+  <section id="modes">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">Recovery modes</div>
+        <h2>Three ways to recover.<br />All time-locked.</h2>
+        <p class="section-desc">
+          Every recovery mode stages the key rotation behind a configurable timelock.
+          The real owner can always cancel during the window.
+        </p>
+      </div>
+      <div class="modes-grid">
+        <div class="mode-card">
+          <div class="mode-icon">&#x2709;</div>
+          <h3>Email + World ID</h3>
+          <p>
+            Owner sends a recovery email. A Noir ZK circuit proves the DKIM
+            signature is valid without revealing the email address. World ID
+            proves the initiator is human. Both proofs verified on-chain.
+          </p>
+          <span class="mode-tag mode-tag-zk">ZK + WORLD ID</span>
+        </div>
+        <div class="mode-card">
+          <div class="mode-icon">&#x1F511;</div>
+          <h3>Backup wallet</h3>
+          <p>
+            A pre-registered backup address can initiate recovery directly.
+            No proofs needed &mdash; just a transaction from the backup wallet.
+            Simplest mode for solo operators.
+          </p>
+          <span class="mode-tag mode-tag-simple">SINGLE TX</span>
+        </div>
+        <div class="mode-card">
+          <div class="mode-icon">&#x1F465;</div>
+          <h3>Social / Guardian</h3>
+          <p>
+            M-of-N guardians vote to approve a new owner. Once the threshold
+            is met, the timelock starts automatically. Nonce increments
+            invalidate stale votes on cancel.
+          </p>
+          <span class="mode-tag mode-tag-simple">M-OF-N</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- How it works -->
+  <section id="how">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">How it works</div>
+        <h2>Register, recover,<br />execute</h2>
+        <p class="section-desc">
+          Spectre does not deploy agents &mdash; it protects existing ones.
+          Register a recovery config, then recover when you need to.
+        </p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">01</div>
+          <h3>Register</h3>
+          <p>Owner registers a recovery config for their agent wallet. On-chain: SHA256 of recovery email, timelock
+            duration, optional guardians and backup wallet.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <h3>Initiate recovery</h3>
+          <p>Send a recovery email with the new key + nonce in the body. Generate a ZK proof of the DKIM signature.
+            Verify with World ID. Submit both proofs on-chain.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <h3>Execute</h3>
+          <p>After the timelock expires, anyone can finalize. The agent record gets the new owner. Nonce increments. The
+            old key loses control.</p>
+        </div>
+      </div>
+
+      <div class="flow-block">
+        <div class="flow-header">email + world id recovery flow</div>
+        <div class="flow-body">Owner sends email: body = <span class="hl">{newKey}:{nonce}</span>
+          |
+          v
+          Relayer parses .eml, extracts <span class="hl">DKIM signature</span>
+          |
+          v
+          Noir circuit proves DKIM valid + email hash matches + body = recovery params
+          |
+          v
+          Owner scans <span class="hl">World ID</span> QR (proves human, binds signal to recovery)
+          |
+          v
+          <span class="hl">SpectreRegistry.initiateRecovery()</span> verifies both proofs on-chain
+          |
+          v
+          Timelock starts (<span class="warn">~24h on mainnet</span>)
+          |
+          +-- <span class="ok">Owner cancels</span> --> recovery cleared, nonce + 1
+          |
+          +-- Timelock elapses --> <span class="ok">executeRecovery()</span> rotates owner key
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Architecture -->
+  <section id="architecture">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">Architecture</div>
+        <h2>Four components,<br />one protocol</h2>
+        <p class="section-desc">
+          A Noir ZK circuit, Solidity contracts, a TypeScript relayer, and a
+          World ID frontend &mdash; each independently verifiable.
+        </p>
+      </div>
+      <div class="arch-grid">
+        <div class="arch-card">
+          <h3>circuits/</h3>
+          <p>
+            Noir ZK circuit for DKIM email verification. Proves RSA-2048
+            signature validity, FROM address hash, and body content &mdash; all
+            without revealing the email. Compiled to UltraHonk proofs via
+            Barretenberg.
+          </p>
+        </div>
+        <div class="arch-card">
+          <h3>contracts/</h3>
+          <p>
+            Solidity smart contracts on Base. <code>SpectreRegistry</code> manages
+            agent records and enforces recovery rules. <code>Verifier.sol</code>
+            (auto-generated) verifies UltraHonk proofs on-chain. Built with Foundry.
+          </p>
+        </div>
+        <div class="arch-card">
+          <h3>relayer/</h3>
+          <p>
+            TypeScript off-chain service. Parses <code>.eml</code> files, fetches DKIM
+            keys from DNS, generates ZK witnesses, builds proofs via <code>nargo</code> +
+            <code>bb</code>, and submits transactions. Full CLI for all recovery operations.
+          </p>
+        </div>
+        <div class="arch-card">
+          <h3>world-id-ui/</h3>
+          <p>
+            React frontend for World ID proof generation. User fills in recovery
+            parameters, scans with World App, and gets a Semaphore proof. Signal
+            binds the proof to the specific recovery (owner + newOwner + nonce).
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ZK circuit -->
+  <section id="circuit">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">ZK circuit</div>
+        <h2>What the proof verifies</h2>
+        <p class="section-desc">
+          The Noir circuit generates a zero-knowledge proof that the recovery
+          email is authentic &mdash; without revealing the email address or contents.
+        </p>
+      </div>
+      <div class="phases">
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">RSA-2048 DKIM signature</div>
+            <div class="phase-desc">Proves the email was signed by the sender's mail server. The RSA public key is a
+              public input verified against DNS.</div>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">FROM address hash</div>
+            <div class="phase-desc">SHA256 of the sender's email address matches the on-chain commitment. The actual
+              address is never revealed on-chain.</div>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">Body content binding</div>
+            <div class="phase-desc">Email body must contain exactly <code
+                style="font-family:'Space Mono',monospace;font-size:0.72rem;background:var(--surface2);padding:0.1rem 0.3rem;border-radius:2px;color:var(--text)">{recovery_key}:{nonce}</code>,
+              binding the proof to a specific recovery attempt.</div>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">Body hash integrity</div>
+            <div class="phase-desc">The DKIM bh= header matches the SHA256 of the canonicalized body, proving the body
+              hasn't been tampered with.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- CLI -->
+  <section id="cli">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">CLI reference</div>
+        <h2>Developer commands</h2>
+        <p class="section-desc">
+          All recovery operations are available through the relayer CLI.
+          Run from the <code
+            style="font-family:'Space Mono',monospace;font-size:0.85rem;background:var(--surface2);padding:0.1rem 0.4rem;border-radius:2px;color:var(--text)">relayer/</code>
+          directory.
+        </p>
+      </div>
+      <table class="cli-table">
+        <thead>
+          <tr>
+            <th>Command</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>npm run register</td>
+            <td>Register agent with email hash + timelock</td>
+          </tr>
+          <tr>
+            <td>npm run initiate</td>
+            <td>Initiate Email + World ID recovery</td>
+          </tr>
+          <tr>
+            <td>npm run cancel</td>
+            <td>Cancel pending recovery (owner only)</td>
+          </tr>
+          <tr>
+            <td>npm run execute</td>
+            <td>Execute recovery after timelock elapses</td>
+          </tr>
+          <tr>
+            <td>npm run check</td>
+            <td>View agent record and recovery status</td>
+          </tr>
+          <tr>
+            <td>npm run set-backup</td>
+            <td>Set backup wallet address</td>
+          </tr>
+          <tr>
+            <td>npm run initiate-backup</td>
+            <td>Initiate backup wallet recovery</td>
+          </tr>
+          <tr>
+            <td>npm run set-guardians</td>
+            <td>Configure guardian addresses + threshold</td>
+          </tr>
+          <tr>
+            <td>npm run approve-guardian</td>
+            <td>Guardian votes for a recovery</td>
+          </tr>
+          <tr>
+            <td>npm run server</td>
+            <td>Start the HTTP prover API</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- API -->
+  <section id="api">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">Prover API</div>
+        <h2>HTTP endpoints</h2>
+        <p class="section-desc">
+          The relayer server exposes a REST API for proof generation and
+          World ID context signing. Runs on port 3001.
+        </p>
+      </div>
+      <div class="api-endpoint">
+        <div class="api-header">
+          <span class="api-method">POST</span>
+          <span class="api-path">/prove</span>
+        </div>
+        <div class="api-desc">Upload a .eml file with recovery params. Returns the ZK proof and public inputs as hex.
+        </div>
+      </div>
+      <div class="api-endpoint">
+        <div class="api-header">
+          <span class="api-method">POST</span>
+          <span class="api-path">/verify</span>
+        </div>
+        <div class="api-desc">Verify a proof against public inputs and verification key.</div>
+      </div>
+      <div class="api-endpoint">
+        <div class="api-header">
+          <span class="api-method">POST</span>
+          <span class="api-path">/worldid-context</span>
+        </div>
+        <div class="api-desc">Get a signed RP context for the World ID widget. Required before opening the IDKit modal.
+        </div>
+      </div>
+      <div class="api-endpoint">
+        <div class="api-header">
+          <span class="api-method"
+            style="background:rgba(74,222,128,0.1);color:var(--green);border-color:rgba(74,222,128,0.2)">GET</span>
+          <span class="api-path">/health</span>
+        </div>
+        <div class="api-desc">Health check. Returns <code
+            style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--text)">{ ok: true }</code>.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Status -->
+  <section id="status">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">Build status</div>
+        <h2>What's built.<br />What's next.</h2>
+        <p class="section-desc">All core functionality is complete and deployed on Base Sepolia testnet.</p>
+      </div>
+      <div class="phases">
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">Noir DKIM Circuit</div>
+            <div class="phase-desc">RSA-2048 verification &middot; SHA256 body hash &middot; FROM address hashing
+              &middot; recovery param parsing &middot; UltraHonk backend</div>
+          </div>
+          <span class="badge badge-done">&check; Complete</span>
+        </div>
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">Smart Contracts</div>
+            <div class="phase-desc">SpectreRegistry &middot; 3 recovery modes &middot; timelock &middot; nonce replay
+              protection &middot; UltraHonk verifier &middot; World ID integration &middot; 26 test cases</div>
+          </div>
+          <span class="badge badge-done">&check; Complete</span>
+        </div>
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">Relayer + CLI</div>
+            <div class="phase-desc">Email parser &middot; DKIM key fetch &middot; witness builder &middot; proof
+              generation &middot; 10 CLI commands &middot; HTTP prover API</div>
+          </div>
+          <span class="badge badge-done">&check; Complete</span>
+        </div>
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">World ID Integration</div>
+            <div class="phase-desc">IDKit v4 widget &middot; RP context signing &middot; Semaphore proof generation
+              &middot; signal binding (owner + newOwner + nonce)</div>
+          </div>
+          <span class="badge badge-done">&check; Complete</span>
+        </div>
+        <div class="phase">
+          <div class="phase-left">
+            <div class="phase-name">World ID v4 Upgrade</div>
+            <div class="phase-desc">Migrate from v3 Semaphore proofs to v4 compressed Groth16 when World ID 4.0 exits
+              preview</div>
+          </div>
+          <span class="badge badge-next">Planned</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Contracts -->
+  <section id="contracts">
+    <div class="container">
+      <div class="container-narrow">
+        <div class="section-label">Testnet</div>
+        <h2>Live on Base Sepolia</h2>
+        <p class="section-desc">All contracts are deployed and verified. Ready for integration testing.</p>
+      </div>
+      <table class="contracts-table">
+        <thead>
+          <tr>
+            <th>Contract</th>
+            <th>Address</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SpectreRegistry</td>
+            <td>0xc8458d4B3b67a9a9643d6818dC73D2a10723C551</td>
+          </tr>
+          <tr>
+            <td>HonkVerifier</td>
+            <td>0x8a4C0AdAFe442A9c9E7Aaf7815bD92fd3F961917</td>
+          </tr>
+          <tr>
+            <td>World ID Router</td>
+            <td>0x42FF98C4E85212a5D31358ACbFe76a621b784Fac</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.78rem; color:var(--muted); margin-top:1rem">
+        Full setup guide and CLI commands in the
+        <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener"
+          style="color:var(--blue)">repo README &rarr;</a>
+      </p>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- CTA -->
+  <section id="cta">
+    <div class="container-narrow">
+      <h2>Key recovery is<br />critical infrastructure</h2>
+      <p>As autonomous agents manage more valuable assets, losing a key cannot mean losing everything. Spectre makes
+        recovery trustless, time-safe, and ZK-private.</p>
+      <div class="hero-actions">
+        <a href="https://github.com/cecilia-mulandi/spectre-evm" target="_blank" rel="noopener"
+          class="btn btn-white">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-logo">
+      <span>SPECTRE PROTOCOL</span>
+    </div>
+    <p><a href="https://github.com/cecilia-mulandi/spectre-evm" target="_blank" rel="noopener">GitHub</a> &middot; <a
+        href="https://base.org" target="_blank" rel="noopener">Base</a></p>
+  </footer>
+
+</body>
+
+</html>
