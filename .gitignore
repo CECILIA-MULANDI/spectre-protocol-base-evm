@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+config.json
+relayer/config.json
+contracts/out/
+contracts/cache/
+circuits/target/
+docs/
