@@ -6,5 +6,5 @@ relayer/config.json
 contracts/out/
 contracts/cache/
 circuits/target/
-docs/
+my-docs/
 *.eml
