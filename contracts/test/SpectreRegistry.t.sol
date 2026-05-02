@@ -356,4 +356,117 @@ contract SpectreRegistryTest is Test {
         assertEq(gs[1], guardian2);
         assertEq(gs[2], guardian3);
     }
+
+    // ── Edge cases ────────────────────────────────────────────────────────────
+
+    function test_initiate_revert_zero_new_owner() public {
+        vm.prank(owner);
+        registry.register(emailHash, 7200);
+
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        registry.initiateRecovery(owner, address(0), proof, inputs, 1, 999, wIdProof);
+    }
+
+    function test_initiate_revert_not_registered() public {
+        vm.expectRevert(SpectreRegistry.NotRegistered.selector);
+        registry.initiateRecovery(address(0x99), newOwner, proof, inputs, 1, 999, wIdProof);
+    }
+
+    function test_initiate_revert_recovery_already_pending() public {
+        vm.prank(owner);
+        registry.register(emailHash, 7200);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+
+        vm.expectRevert(SpectreRegistry.RecoveryPending.selector);
+        registry.initiateRecovery(owner, address(0x5), proof, inputs, 1, 888, wIdProof);
+    }
+
+    function test_execute_revert_no_recovery_pending() public {
+        vm.prank(owner);
+        registry.register(emailHash, 7200);
+
+        vm.expectRevert(SpectreRegistry.NoRecoveryPending.selector);
+        registry.executeRecovery(owner);
+    }
+
+    function test_double_execute_reverts() public {
+        vm.prank(owner);
+        registry.register(emailHash, 7200);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        vm.roll(block.number + 7201);
+        registry.executeRecovery(owner);
+
+        // second execute should fail — no longer pending
+        vm.expectRevert(SpectreRegistry.NoRecoveryPending.selector);
+        registry.executeRecovery(owner);
+    }
+
+    function test_cancel_revert_no_recovery_pending() public {
+        vm.prank(owner);
+        registry.register(emailHash, 7200);
+
+        vm.prank(owner);
+        vm.expectRevert(SpectreRegistry.NoRecoveryPending.selector);
+        registry.cancelRecovery(owner);
+    }
+
+    function test_register_revert_zero_email_hash() public {
+        vm.prank(owner);
+        vm.expectRevert(SpectreRegistry.InvalidEmailHash.selector);
+        registry.register(bytes32(0), 7200);
+    }
+
+    function test_backup_revert_zero_new_owner() public {
+        address backup = address(0xB);
+        vm.startPrank(owner);
+        registry.register(emailHash, 7200);
+        registry.setBackupWallet(backup);
+        vm.stopPrank();
+
+        vm.prank(backup);
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        registry.initiateBackupRecovery(owner, address(0));
+    }
+
+    function test_guardian_revert_zero_new_owner() public {
+        _registerWithGuardians(2);
+
+        vm.prank(guardian1);
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        registry.approveGuardianRecovery(owner, address(0));
+    }
+
+    function test_nonce_increments_on_execute() public {
+        vm.prank(owner);
+        registry.register(emailHash, 7200);
+        assertEq(registry.getRecord(owner).nonce, 1);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        vm.roll(block.number + 7201);
+        registry.executeRecovery(owner);
+        assertEq(registry.getRecord(owner).nonce, 2);
+    }
+
+    function test_nonce_increments_on_cancel() public {
+        vm.prank(owner);
+        registry.register(emailHash, 7200);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+
+        vm.prank(owner);
+        registry.cancelRecovery(owner);
+        assertEq(registry.getRecord(owner).nonce, 2);
+    }
+
+    function test_constructor_revert_zero_verifier() public {
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        new SpectreRegistry(address(0), address(mockWorldId), 1, 1);
+    }
+
+    function test_constructor_revert_zero_worldid() public {
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        new SpectreRegistry(address(mockVerifier), address(0), 1, 1);
+    }
 }
