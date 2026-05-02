@@ -8,3 +8,4 @@ contracts/cache/
 circuits/target/
 my-docs/
 *.eml
+*.docx
