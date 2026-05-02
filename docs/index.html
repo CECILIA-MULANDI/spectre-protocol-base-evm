@@ -4,13 +4,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spectre Protocol — EVM (Base)</title>
+  <title>Spectre Protocol · Trustless recovery for on-chain AI agents</title>
   <meta name="description"
-    content="Zero-knowledge account recovery for AI agents on Base. DKIM email proofs, World ID verification, and timelocked key rotation." />
+    content="Spectre is the trustless recovery layer for on-chain AI agents. ZK email proofs, World ID, guardian recovery, and time-locked safety windows. No trusted third party." />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap"
     rel="stylesheet" />
+
   <style>
     *,
     *::before,
@@ -21,32 +24,50 @@
     }
 
     :root {
-      --black: #000000;
-      --white: #ffffff;
-      --blue: #5aabf0;
-      --blue-dim: rgba(90, 171, 240, 0.15);
-      --blue-border: rgba(90, 171, 240, 0.25);
-      --surface: #0a0a0a;
-      --surface2: #111111;
-      --border: #1a1a1a;
-      --muted: #666666;
-      --text: #e8e8e8;
-      --green: #4ade80;
-      --yellow: #fbbf24;
-      --red: #f87171;
+      --bg: #0A0E1A;
+      --bg2: #111827;
+      --bg3: #1C2B40;
+      --text: #E8ECF4;
+      --text2: #6B8299;
+      --text3: #2E3F55;
+      --accent: #00C9A7;
+      --accent-dim: #007A65;
+      --accent-bg: #071A16;
+      --border: rgba(255, 255, 255, 0.06);
+      --border2: rgba(255, 255, 255, 0.10);
+      --gold: #F0C040;
+      --gold-dim: rgba(240, 192, 64, 0.15);
+    }
+
+    [data-theme='light'] {
+      --bg: #F5F6FA;
+      --bg2: #ECEEF5;
+      --bg3: #E2E5EF;
+      --text: #0A0E1A;
+      --text2: #5A6A80;
+      --text3: #A0AABB;
+      --accent: #007A65;
+      --accent-dim: #005A4A;
+      --accent-bg: #E0F5EF;
+      --border: rgba(0, 0, 0, 0.07);
+      --border2: rgba(0, 0, 0, 0.12);
+      --gold: #B8860B;
+      --gold-dim: rgba(184, 134, 11, 0.15);
     }
 
     html {
       scroll-behavior: smooth;
-      font-size: 18px;
     }
 
     body {
-      font-family: 'Space Grotesk', sans-serif;
-      background: var(--black);
+      background: var(--bg);
       color: var(--text);
-      line-height: 1.6;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 17px;
+      font-weight: 400;
+      line-height: 1.65;
       -webkit-font-smoothing: antialiased;
+      transition: background 0.3s, color 0.3s;
     }
 
     a {
@@ -54,694 +75,1172 @@
       text-decoration: none;
     }
 
-    /* ── Nav ── */
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: inherit;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 48px;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
+
+    .accent {
+      color: var(--accent);
+    }
+
+    .section-tag {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ── Nav ───────────────────────────────────────────── */
     nav {
-      position: fixed;
+      position: sticky;
       top: 0;
-      left: 0;
-      right: 0;
       z-index: 100;
+      height: 60px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 2rem;
-      height: 60px;
-      border-bottom: 1px solid var(--border);
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(16px);
+      padding: 0 48px;
+      background: var(--bg);
+      border-bottom: 0.5px solid var(--border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .nav-logo {
       display: flex;
       align-items: center;
       gap: 10px;
+      color: var(--accent);
     }
 
-    .nav-logo-text {
-      font-size: 0.8rem;
+    .nav-logo svg {
+      display: block;
+    }
+
+    .nav-wordmark {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
       font-weight: 600;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.1em;
+      color: var(--text);
       text-transform: uppercase;
-      color: var(--white);
-    }
-
-    .nav-chain {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.6rem;
-      color: var(--blue);
-      background: var(--blue-dim);
-      border: 1px solid var(--blue-border);
-      padding: 0.15rem 0.5rem;
-      border-radius: 2px;
-      margin-left: 0.5rem;
     }
 
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 2rem;
+      gap: 28px;
     }
 
     .nav-links a {
-      font-size: 0.85rem;
-      color: var(--muted);
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text2);
       transition: color 0.2s;
     }
 
     .nav-links a:hover {
-      color: var(--white);
+      color: var(--accent);
     }
 
-    .nav-cta {
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--black) !important;
-      background: var(--white);
-      padding: 0.4rem 1.1rem;
-      border-radius: 4px;
-      transition: background 0.2s, color 0.2s !important;
-    }
-
-    .nav-cta:hover {
-      background: var(--blue) !important;
-      color: var(--black) !important;
-    }
-
-    /* ── Sections ── */
-    section {
-      padding: 6rem 2rem;
-    }
-
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-
-    .container-narrow {
-      max-width: 680px;
-      margin: 0 auto;
-    }
-
-    /* ── Hero ── */
-    #hero {
-      min-height: 100vh;
+    .nav-right {
       display: flex;
       align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 8rem 2rem 6rem;
-      position: relative;
-      overflow: hidden;
+      gap: 12px;
     }
 
-    .hero-bg {
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(ellipse 70% 50% at 50% -10%, rgba(90, 171, 240, 0.08) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 30% at 80% 80%, rgba(90, 171, 240, 0.04) 0%, transparent 50%);
-      pointer-events: none;
-    }
-
-    .hero-tag {
+    .theme-toggle {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-family: 'Space Mono', monospace;
-      font-size: 0.72rem;
-      letter-spacing: 0.1em;
-      color: var(--blue);
-      border: 1px solid var(--blue-border);
-      background: var(--blue-dim);
-      padding: 0.35rem 0.85rem;
-      border-radius: 100px;
-      margin-bottom: 2rem;
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: var(--bg3);
+      color: var(--text2);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      transition: color 0.2s, background 0.2s;
     }
 
-    .hero-tag::before {
-      content: '';
+    .theme-toggle:hover {
+      color: var(--accent);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      transition: opacity 0.2s, transform 0.2s, border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      padding: 12px 26px;
+      border-radius: 7px;
+      font-weight: 500;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.88;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      padding: 12px 26px;
+      border-radius: 7px;
+      border: 0.5px solid var(--border2);
+      font-weight: 400;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .btn-cta-nav {
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 7px 18px;
+      border-radius: 6px;
+    }
+
+    .btn-cta-nav:hover {
+      opacity: 0.88;
+      transform: translateY(-1px);
+    }
+
+    /* ── Live badge ────────────────────────────────────── */
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 26px;
+      padding: 0 12px;
+      border-radius: 20px;
+      background: var(--accent-bg);
+      border: 0.5px solid var(--accent-dim);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+
+    .live-dot {
       width: 6px;
       height: 6px;
-      background: var(--blue);
       border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s ease infinite;
     }
 
-    h1 {
-      font-size: clamp(2.8rem, 7vw, 5.5rem);
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    /* ── Hero ──────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      min-height: 90vh;
+      display: flex;
+      align-items: center;
+      padding: 80px 0;
+      overflow: hidden;
+    }
+
+    .hero-grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(0deg, var(--border) 0 0.5px, transparent 0.5px 60px),
+        repeating-linear-gradient(90deg, var(--border) 0 0.5px, transparent 0.5px 60px);
+      -webkit-mask-image: radial-gradient(ellipse at center, #000 25%, transparent 75%);
+      mask-image: radial-gradient(ellipse at center, #000 25%, transparent 75%);
+      pointer-events: none;
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: -200px;
+      right: -200px;
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
+      opacity: 0.06;
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+    }
+
+    .hero-eyebrow {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 22px;
+      margin-bottom: 22px;
+    }
+
+    .hero h1 {
+      font-family: 'Syne', sans-serif;
       font-weight: 700;
+      font-size: clamp(36px, 5vw, 58px);
       line-height: 1.05;
-      letter-spacing: -0.03em;
-      color: var(--white);
-      margin-bottom: 1.5rem;
+      letter-spacing: -0.01em;
+      color: var(--text);
     }
 
-    h1 .accent {
-      color: var(--blue);
+    .hero h1 .accent {
+      display: block;
+      color: var(--accent);
     }
 
     .hero-sub {
-      font-size: 1.1rem;
-      color: var(--muted);
       max-width: 520px;
-      margin: 0 auto 2.5rem;
-      line-height: 1.7;
-      font-weight: 400;
+      margin-top: 26px;
+      font-size: 17px;
+      line-height: 1.75;
+      color: var(--text2);
     }
 
     .hero-actions {
       display: flex;
-      gap: 0.75rem;
-      justify-content: center;
       flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 36px;
     }
 
-    .btn {
-      display: inline-block;
-      font-size: 0.85rem;
-      font-weight: 600;
-      padding: 0.7rem 1.6rem;
-      border-radius: 4px;
-      transition: all 0.2s;
-      cursor: pointer;
+    /* Hero stagger reveal */
+    .hero-inner>* {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: heroIn 0.6s ease forwards;
     }
 
-    .btn-white {
-      background: var(--white);
-      color: var(--black);
+    .hero-inner>*:nth-child(1) {
+      animation-delay: 0s;
     }
 
-    .btn-white:hover {
-      background: var(--blue);
+    .hero-inner>*:nth-child(2) {
+      animation-delay: 0.1s;
     }
 
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
+    .hero-inner>*:nth-child(3) {
+      animation-delay: 0.15s;
     }
 
-    .btn-ghost:hover {
-      border-color: var(--muted);
-      color: var(--white);
+    .hero-inner>*:nth-child(4) {
+      animation-delay: 0.20s;
     }
 
-    .hero-stats {
-      display: flex;
-      justify-content: center;
-      gap: 3rem;
-      margin-top: 4rem;
-      flex-wrap: wrap;
+    .hero-inner>*:nth-child(5) {
+      animation-delay: 0.25s;
+    }
+
+    .hero-inner>*:nth-child(6) {
+      animation-delay: 0.30s;
+    }
+
+    @keyframes heroIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── Stats bar ─────────────────────────────────────── */
+    .stats {
+      border-top: 0.5px solid var(--border);
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .stats-row {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
     }
 
     .stat {
-      text-align: center;
+      padding: 32px 28px;
+      border-left: 0.5px solid var(--border);
     }
 
-    .stat-value {
-      font-size: 1.6rem;
+    .stat:first-child {
+      border-left: none;
+    }
+
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 38px;
       font-weight: 700;
-      color: var(--white);
-      letter-spacing: -0.02em;
+      color: var(--accent);
+      line-height: 1;
     }
 
     .stat-label {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 0.2rem;
-      letter-spacing: 0.05em;
-    }
-
-    /* ── Divider ── */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 0 2rem;
-    }
-
-    /* ── Section labels ── */
-    .section-label {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.15em;
+      margin-top: 10px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text2);
       text-transform: uppercase;
-      color: var(--blue);
-      margin-bottom: 1rem;
+      letter-spacing: 0.08em;
     }
 
-    h2 {
-      font-size: clamp(1.8rem, 4vw, 2.6rem);
-      font-weight: 700;
-      letter-spacing: -0.025em;
-      color: var(--white);
+    /* ── Section structure ────────────────────────────── */
+    .section {
+      padding: 80px 0;
+    }
+
+    .section-alt {
+      background: var(--bg2);
+    }
+
+    .section-head {
+      max-width: 720px;
+    }
+
+    .section-head .section-tag {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .section-h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(26px, 3.5vw, 38px);
+      font-weight: 600;
       line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: var(--text);
     }
 
-    .section-desc {
-      color: var(--muted);
-      font-size: 1rem;
-      margin-top: 0.75rem;
+    .section-sub {
+      max-width: 560px;
+      margin-top: 14px;
+      font-size: 16.5px;
       line-height: 1.7;
+      color: var(--text2);
     }
 
-    /* ── Recovery modes ── */
+    .section-body {
+      margin-top: 48px;
+    }
+
+    /* ── Recovery modes (grid-line cards) ─────────────── */
     .modes-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      margin-top: 3rem;
-    }
-
-    .mode-card {
-      background: var(--black);
-      padding: 2rem;
-    }
-
-    .mode-icon {
-      font-size: 1.4rem;
-      margin-bottom: 1rem;
-    }
-
-    .mode-card h3 {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--white);
-      margin-bottom: 0.5rem;
-    }
-
-    .mode-card p {
-      font-size: 0.82rem;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .mode-tag {
-      display: inline-block;
-      font-family: 'Space Mono', monospace;
-      font-size: 0.6rem;
-      letter-spacing: 0.05em;
-      padding: 0.2rem 0.5rem;
-      border-radius: 2px;
-      margin-top: 0.75rem;
-    }
-
-    .mode-tag-zk {
-      background: rgba(90, 171, 240, 0.1);
-      color: var(--blue);
-      border: 1px solid var(--blue-border);
-    }
-
-    .mode-tag-simple {
-      background: rgba(74, 222, 128, 0.1);
-      color: var(--green);
-      border: 1px solid rgba(74, 222, 128, 0.2);
-    }
-
-    /* ── Steps ── */
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      margin-top: 3rem;
-    }
-
-    .step {
-      background: var(--black);
-      padding: 2rem;
-    }
-
-    .step-num {
-      font-family: 'Space Mono', monospace;
-      font-size: 2.5rem;
-      font-weight: 700;
-      color: var(--border);
-      line-height: 1;
-      margin-bottom: 1.2rem;
-    }
-
-    .step h3 {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--white);
-      margin-bottom: 0.5rem;
-    }
-
-    .step p {
-      font-size: 0.82rem;
-      color: var(--muted);
-      line-height: 1.65;
-    }
-
-    /* ── Flow ── */
-    .flow-block {
-      margin-top: 3rem;
-      border: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .flow-header {
-      padding: 1rem 1.5rem;
-      border-bottom: 1px solid var(--border);
-      font-family: 'Space Mono', monospace;
-      font-size: 0.72rem;
-      color: var(--muted);
-      letter-spacing: 0.05em;
-    }
-
-    .flow-body {
-      padding: 1.5rem;
-      font-family: 'Space Mono', monospace;
-      font-size: 0.78rem;
-      line-height: 2;
-      color: var(--muted);
-      overflow-x: auto;
-      white-space: pre;
-    }
-
-    .flow-body .hl {
-      color: var(--blue);
-    }
-
-    .flow-body .ok {
-      color: var(--green);
-    }
-
-    .flow-body .warn {
-      color: var(--yellow);
-    }
-
-    /* ── Architecture ── */
-    .arch-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 1px;
       background: var(--border);
-      border: 1px solid var(--border);
-      margin-top: 3rem;
+      border: 0.5px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
     }
 
-    .arch-card {
-      background: var(--black);
-      padding: 2rem;
+    .mode-card {
+      background: var(--bg);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
 
-    .arch-card h3 {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--blue);
-      margin-bottom: 0.5rem;
-      letter-spacing: 0.02em;
+    .section-alt .mode-card {
+      background: var(--bg2);
     }
 
-    .arch-card p {
-      font-size: 0.82rem;
-      color: var(--muted);
-      line-height: 1.65;
+    .mode-num-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
     }
 
-    .arch-card code {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.72rem;
-      background: var(--surface2);
-      padding: 0.15rem 0.4rem;
-      border-radius: 2px;
+    .mode-num-row::after {
+      content: "";
+      flex: 1;
+      height: 0.5px;
+      background: var(--border2);
+    }
+
+    .mode-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
       color: var(--text);
     }
 
-    /* ── CLI ── */
-    .cli-table {
-      margin-top: 2rem;
-      border: 1px solid var(--border);
-      width: 100%;
-      border-collapse: collapse;
+    .mode-desc {
+      font-size: 15.5px;
+      line-height: 1.7;
+      color: var(--text2);
     }
 
-    .cli-table th {
-      text-align: left;
-      padding: 0.75rem 1.25rem;
-      font-family: 'Space Mono', monospace;
-      font-size: 0.65rem;
+    .mode-badge {
+      align-self: flex-start;
+      margin-top: auto;
+      padding-top: 8px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--accent);
       letter-spacing: 0.1em;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
     }
 
-    .cli-table td {
-      padding: 0.85rem 1.25rem;
-      font-size: 0.78rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .cli-table tr:last-child td {
-      border-bottom: none;
-    }
-
-    .cli-table td:first-child {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.72rem;
-      color: var(--blue);
-      white-space: nowrap;
-    }
-
-    .cli-table td:last-child {
-      color: var(--muted);
-    }
-
-    /* ── Status / phases ── */
-    .phases {
-      margin-top: 3rem;
+    /* ── How it works (timeline + flow block) ─────────── */
+    .steps {
+      position: relative;
       display: flex;
       flex-direction: column;
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
     }
 
-    .phase {
-      background: var(--black);
-      padding: 1.5rem 2rem;
+    .steps::before {
+      content: "";
+      position: absolute;
+      left: 23px;
+      top: 24px;
+      bottom: 24px;
+      width: 0.5px;
+      background: var(--border2);
+    }
+
+    .step {
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 2rem;
-      flex-wrap: wrap;
+      gap: 22px;
+      padding: 24px 0;
+      border-bottom: 0.5px solid var(--border);
     }
 
-    .phase-left {
-      flex: 1;
-      min-width: 200px;
-    }
-
-    .phase-name {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--white);
-      margin-bottom: 0.3rem;
-    }
-
-    .phase-desc {
-      font-size: 0.8rem;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .badge {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.65rem;
-      padding: 0.25rem 0.7rem;
-      border-radius: 2px;
-      white-space: nowrap;
-      flex-shrink: 0;
-      margin-top: 0.15rem;
-    }
-
-    .badge-done {
-      background: rgba(74, 222, 128, 0.1);
-      color: var(--green);
-      border: 1px solid rgba(74, 222, 128, 0.2);
-    }
-
-    .badge-next {
-      background: rgba(90, 171, 240, 0.1);
-      color: var(--blue);
-      border: 1px solid var(--blue-border);
-    }
-
-    /* ── Contracts table ── */
-    .contracts-table {
-      margin-top: 2rem;
-      border: 1px solid var(--border);
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .contracts-table th {
-      text-align: left;
-      padding: 0.75rem 1.25rem;
-      font-family: 'Space Mono', monospace;
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .contracts-table td {
-      padding: 0.85rem 1.25rem;
-      font-family: 'Space Mono', monospace;
-      font-size: 0.72rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .contracts-table tr:last-child td {
+    .step:last-child {
       border-bottom: none;
     }
 
-    .contracts-table td:first-child {
-      color: var(--blue);
-      white-space: nowrap;
-    }
-
-    .contracts-table td:last-child {
-      color: var(--muted);
-      word-break: break-all;
-    }
-
-    /* ── API ── */
-    .api-endpoint {
-      border: 1px solid var(--border);
-      margin-top: 1rem;
-      background: var(--black);
-    }
-
-    .api-endpoint:first-of-type {
-      margin-top: 2rem;
-    }
-
-    .api-header {
-      padding: 0.75rem 1.25rem;
-      border-bottom: 1px solid var(--border);
+    .step-num {
+      flex: 0 0 46px;
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: var(--bg3);
+      border: 0.5px solid var(--border2);
+      color: var(--accent);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13px;
+      font-weight: 500;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
     }
 
-    .api-method {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.65rem;
-      font-weight: 700;
-      padding: 0.2rem 0.5rem;
-      border-radius: 2px;
-      background: var(--blue-dim);
-      color: var(--blue);
-      border: 1px solid var(--blue-border);
+    .step-body h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
     }
 
-    .api-path {
-      font-family: 'Space Mono', monospace;
-      font-size: 0.78rem;
-      color: var(--white);
+    .step-body p {
+      font-size: 15.5px;
+      line-height: 1.7;
+      color: var(--text2);
+      max-width: 640px;
     }
 
-    .api-desc {
-      padding: 0.75rem 1.25rem;
-      font-size: 0.78rem;
-      color: var(--muted);
+    /* ── Code block (CLI bar styling) ─────────────────── */
+    .code-block {
+      margin-top: 32px;
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
     }
 
-    /* ── CTA ── */
-    #cta {
-      text-align: center;
+    .section-alt .code-block {
+      background: var(--bg);
     }
 
-    #cta h2 {
-      margin-bottom: 1rem;
-    }
-
-    #cta p {
-      color: var(--muted);
-      font-size: 0.95rem;
-      margin-bottom: 2rem;
-    }
-
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 2rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-
-    .footer-logo {
+    .code-bar {
       display: flex;
       align-items: center;
       gap: 8px;
+      padding: 0 12px;
+      height: 28px;
+      background: var(--bg3);
+      border-bottom: 0.5px solid var(--border);
     }
 
-    .footer-logo span {
-      font-size: 0.75rem;
-      color: var(--muted);
-      letter-spacing: 0.1em;
+    .code-bar-dots {
+      display: inline-flex;
+      gap: 6px;
     }
 
-    footer p {
-      font-size: 0.75rem;
-      color: var(--muted);
+    .code-bar-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
     }
 
-    footer a {
-      color: var(--muted);
+    .code-bar-dots span:nth-child(1) {
+      background: #ff5f56;
+    }
+
+    .code-bar-dots span:nth-child(2) {
+      background: #ffbd2e;
+    }
+
+    .code-bar-dots span:nth-child(3) {
+      background: #27c93f;
+    }
+
+    .code-bar-title {
+      margin-left: 6px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--text3);
+    }
+
+    .code-body {
+      padding: 20px 22px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 2;
+      color: var(--text2);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .code-body .accent {
+      color: var(--accent);
+    }
+
+    .code-body .gold {
+      color: var(--gold);
+    }
+
+    /* ── Architecture ─────────────────────────────────── */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .arch-card {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .section-alt .arch-card {
+      background: var(--bg);
+    }
+
+    .arch-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .arch-path {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .arch-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .arch-desc {
+      font-size: 14.5px;
+      line-height: 1.7;
+      color: var(--text2);
+    }
+
+    .arch-sub-head {
+      margin-top: 56px;
+      margin-bottom: 24px;
+      font-family: 'Syne', sans-serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .proof-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .proof-card {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+      padding: 22px;
+    }
+
+    .section-alt .proof-card {
+      background: var(--bg);
+    }
+
+    .proof-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--accent-bg);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+
+    .proof-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 15.5px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .proof-desc {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text2);
+    }
+
+    /* ── Tables (CLI + Contracts) ─────────────────────── */
+    .table-card {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .section-alt .table-card {
+      background: var(--bg);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table thead th {
+      background: var(--bg3);
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-align: left;
+      padding: 12px 22px;
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .data-table tbody td {
+      padding: 14px 22px;
+      font-size: 14px;
+      border-bottom: 0.5px solid var(--border);
+      color: var(--text2);
+    }
+
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .data-table tbody tr:hover td {
+      background: var(--bg3);
+    }
+
+    .data-table td:first-child {
+      color: var(--accent);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
+
+    .data-table.contracts td:nth-child(2) {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--text2);
+      word-break: break-all;
+    }
+
+    /* ── HTTP endpoints ───────────────────────────────── */
+    .api-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .api-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .section-alt .api-item {
+      background: var(--bg);
+    }
+
+    .api-method {
+      flex: 0 0 auto;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+
+    .api-method.post {
+      background: var(--accent-bg);
+      color: var(--accent);
+      border: 0.5px solid var(--accent-dim);
+    }
+
+    .api-method.get {
+      background: var(--gold-dim);
+      color: var(--gold);
+      border: 0.5px solid var(--gold);
+    }
+
+    .api-path {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 14px;
+      color: var(--text);
+      flex: 0 0 auto;
+    }
+
+    .api-desc {
+      font-size: 14px;
+      color: var(--text2);
+      flex: 1;
+    }
+
+    .sub-h3 {
+      margin-top: 56px;
+      margin-bottom: 20px;
+      font-family: 'Syne', sans-serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ── Build status ─────────────────────────────────── */
+    .status-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 0;
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .status-item:last-child {
+      border-bottom: none;
+    }
+
+    .status-left h4 {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .status-detail {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12.5px;
+      color: var(--text2);
+      line-height: 1.75;
+    }
+
+    .status-badge {
+      flex: 0 0 auto;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    .status-badge.done {
+      background: var(--accent-bg);
+      color: var(--accent);
+      border: 0.5px solid var(--accent-dim);
+    }
+
+    .status-badge.planned {
+      background: var(--gold-dim);
+      color: var(--gold);
+      border: 0.5px solid var(--gold);
+    }
+
+    /* ── Contracts ────────────────────────────────────── */
+    .contracts-note {
+      margin-top: 16px;
+      font-size: 14px;
+      color: var(--text2);
+    }
+
+    .contracts-note a {
+      color: var(--accent);
+    }
+
+    .contracts-note a:hover {
+      text-decoration: underline;
+    }
+
+    /* ── Team ─────────────────────────────────────────── */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .team-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+    }
+
+    .section-alt .team-card {
+      background: var(--bg);
+    }
+
+    .team-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--accent-bg);
+      border: 0.5px solid var(--accent-dim);
+      color: var(--accent);
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: 0.04em;
+    }
+
+    .team-name {
+      margin-top: 18px;
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .team-role {
+      margin-top: 4px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .team-bio {
+      margin-top: 16px;
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--text2);
+    }
+
+    .team-tags {
+      margin-top: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .team-tag {
+      padding: 4px 10px;
+      background: var(--bg3);
+      border: 0.5px solid var(--border2);
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--text2);
+    }
+
+    .team-divider {
+      margin: 22px 0 18px;
+      height: 0.5px;
+      background: var(--border);
+    }
+
+    .team-links {
+      display: flex;
+      gap: 18px;
+    }
+
+    .team-links a {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--text2);
       transition: color 0.2s;
     }
 
-    footer a:hover {
-      color: var(--white);
+    .team-links a:hover {
+      color: var(--accent);
     }
 
-    /* ── Responsive ── */
-    @media (max-width: 640px) {
+    /* ── CTA ──────────────────────────────────────────── */
+    .cta {
+      position: relative;
+      text-align: center;
+      padding: 100px 0;
+      overflow: hidden;
+    }
+
+    .cta-glow {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 800px;
+      height: 800px;
+      background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
+      opacity: 0.07;
+      pointer-events: none;
+    }
+
+    .cta .container {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta .section-tag,
+    .cta .section-h2,
+    .cta .section-sub {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta .section-tag {
+      display: inline-block;
+    }
+
+    .cta .section-h2 {
+      margin-top: 10px;
+    }
+
+    .cta .section-sub {
+      margin-top: 14px;
+    }
+
+    .cta-actions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 36px;
+    }
+
+    /* ── Scroll reveal ────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Footer ───────────────────────────────────────── */
+    footer {
+      border-top: 0.5px solid var(--border);
+      padding: 32px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--accent);
+    }
+
+    .footer-wordmark {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13px;
+      color: var(--text2);
+    }
+
+    .footer-links a {
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent);
+    }
+
+    .footer-gold-line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      opacity: 0.35;
+    }
+
+    /* ── Responsive ────────────────────────────────────── */
+    @media (max-width: 768px) {
       nav {
-        padding: 0 1rem;
+        padding: 0 20px;
       }
 
-      .nav-links a:not(.nav-cta) {
+      .nav-links {
         display: none;
       }
 
-      section {
-        padding: 4rem 1.25rem;
+      .container {
+        padding: 0 20px;
       }
 
-      .divider {
-        margin: 0 1.25rem;
+      .hero {
+        min-height: auto;
+        padding: 60px 20px;
       }
 
-      .hero-stats {
-        gap: 2rem;
+      .section {
+        padding: 60px 0;
+      }
+
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .stat:nth-child(odd) {
+        border-left: none;
+      }
+
+      .stat:nth-child(3),
+      .stat:nth-child(4) {
+        border-top: 0.5px solid var(--border);
+      }
+
+      .stat:nth-child(3) {
+        border-left: none;
       }
 
       .modes-grid,
-      .steps,
-      .arch-grid {
+      .arch-grid,
+      .proof-grid,
+      .team-grid {
         grid-template-columns: 1fr;
       }
 
-      .phase {
+      .api-item {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .api-desc {
+        flex-basis: 100%;
+      }
+
+      .status-item {
         flex-direction: column;
-        gap: 0.75rem;
+        align-items: flex-start;
+      }
+
+      .cta {
+        padding: 60px 20px;
       }
 
       footer {
         flex-direction: column;
         align-items: flex-start;
+        padding: 32px 20px;
       }
     }
   </style>
@@ -751,503 +1250,634 @@
 
   <!-- Nav -->
   <nav>
-    <div class="nav-logo">
-      <span class="nav-logo-text">Spectre</span>
-    </div>
+    <a href="#hero" class="nav-logo" aria-label="Spectre Protocol home">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <polygon points="6,4 22,4 20,9 8,9" fill="currentColor" fill-opacity="0.9" />
+        <polygon points="4,9 20,9 18,14 6,14" fill="currentColor" fill-opacity="0.6" />
+        <polygon points="8,14 22,14 20,19 6,19" fill="currentColor" fill-opacity="0.45" />
+        <polygon points="4,19 18,19 16,23 4,23" fill="currentColor" fill-opacity="0.25" />
+        <circle cx="22" cy="4" r="1.6" fill="#F0C040" />
+      </svg>
+      <span class="nav-wordmark">Spectre</span>
+    </a>
+
     <div class="nav-links">
       <a href="#modes">Recovery</a>
       <a href="#how">How it works</a>
       <a href="#architecture">Architecture</a>
       <a href="#contracts">Contracts</a>
-      <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener"
-        class="nav-cta">GitHub
-        &rarr;</a>
+      <a href="#team">Team</a>
+      <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+
+    <div class="nav-right">
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">
+        <span id="theme-toggle-label">🌙 Dark</span>
+      </button>
+      <a href="mailto:hello@spectreprotocol.xyz" class="btn-cta-nav">Contact</a>
     </div>
   </nav>
 
   <!-- Hero -->
-  <section id="hero">
-    <div class="hero-bg"></div>
-    <div class="container-narrow" style="position:relative">
-      <div class="hero-tag">Testnet Live</div>
-      <h1>
-        Key recovery<br />for <span class="accent">AI agents</span>
-      </h1>
-      <p class="hero-sub">
-        When an agent key is compromised, Spectre recovers it using
-        ZK email proofs, World ID verification, and a time-locked
-        safety window &mdash; no trusted third party, no exposed secrets.
-      </p>
-      <p style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);margin-bottom:2rem">
-        Supported chains: <span style="color:var(--blue)">Base Sepolia</span>
-      </p>
-      <div class="hero-actions">
-        <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener"
-          class="btn btn-white">View on GitHub</a>
-        <a href="#how" class="btn btn-ghost">How it works</a>
-      </div>
-      <div class="hero-stats">
-        <div class="stat">
-          <div class="stat-value">3</div>
-          <div class="stat-label">Recovery modes</div>
-        </div>
-        <div class="stat">
-          <div class="stat-value">ZK</div>
-          <div class="stat-label">DKIM email proofs</div>
-        </div>
-        <div class="stat">
-          <div class="stat-value">World ID</div>
-          <div class="stat-label">Human verification</div>
-        </div>
-        <div class="stat">
-          <div class="stat-value">0</div>
-          <div class="stat-label">Trusted parties</div>
+  <section class="hero" id="hero">
+    <div class="hero-grid-bg" aria-hidden="true"></div>
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="container">
+      <div class="hero-inner">
+        <span class="live-badge">
+          <span class="live-dot" aria-hidden="true"></span>
+          Testnet live · Base Sepolia
+        </span>
+        <div class="hero-eyebrow">Trustless key recovery infrastructure</div>
+        <h1>
+          Recovery is not a feature.
+          <span class="accent">It's a guarantee.</span>
+        </h1>
+        <p class="hero-sub">
+          When an AI agent's key is compromised, everything it controls is at risk.
+          Spectre makes human oversight cryptographically enforceable, using ZK email
+          proofs, guardian recovery, and time-locked safety windows. No trusted third
+          party. No exposed secrets.
+        </p>
+        <div class="hero-actions">
+          <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener"
+            class="btn btn-primary">View on GitHub ↗</a>
+          <a href="#how" class="btn btn-secondary">How it works ↓</a>
         </div>
       </div>
     </div>
   </section>
 
-  <div class="divider"></div>
+  <!-- Stats bar -->
+  <section class="stats" aria-label="Protocol stats">
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-num">4</div>
+        <div class="stat-label">Recovery modes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">Trusted parties</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">26</div>
+        <div class="stat-label">On-chain tests</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">EVM</div>
+        <div class="stat-label">Base · any EVM chain</div>
+      </div>
+    </div>
+  </section>
 
   <!-- Recovery modes -->
-  <section id="modes">
+  <section class="section section-alt" id="modes">
     <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">Recovery modes</div>
-        <h2>Three ways to recover.<br />All time-locked.</h2>
-        <p class="section-desc">
+      <div class="section-head reveal">
+        <span class="section-tag">Recovery modes</span>
+        <h2 class="section-h2">Four ways to recover. All time-locked.</h2>
+        <p class="section-sub">
           Every recovery mode stages the key rotation behind a configurable timelock.
-          The real owner can always cancel during the window.
+          The real owner can always cancel during the window. Recovery is never instant.
         </p>
       </div>
-      <div class="modes-grid">
+      <div class="section-body modes-grid reveal">
         <div class="mode-card">
-          <div class="mode-icon">&#x2709;</div>
-          <h3>Email + World ID</h3>
-          <p>
-            Owner sends a recovery email. A Noir ZK circuit proves the DKIM
-            signature is valid without revealing the email address. World ID
-            proves the initiator is human. Both proofs verified on-chain.
+          <div class="mode-num-row"><span>01</span></div>
+          <h3 class="mode-title">ZK Email + World ID</h3>
+          <p class="mode-desc">
+            ZK proof of DKIM signature. World ID proves the initiator is human. Both
+            proofs verified on-chain.
           </p>
-          <span class="mode-tag mode-tag-zk">ZK + WORLD ID</span>
+          <span class="mode-badge">ZK + WORLD ID</span>
         </div>
         <div class="mode-card">
-          <div class="mode-icon">&#x1F511;</div>
-          <h3>Backup wallet</h3>
-          <p>
-            A pre-registered backup address can initiate recovery directly.
-            No proofs needed &mdash; just a transaction from the backup wallet.
-            Simplest mode for solo operators.
+          <div class="mode-num-row"><span>02</span></div>
+          <h3 class="mode-title">Backup wallet</h3>
+          <p class="mode-desc">
+            Pre-registered backup address initiates recovery. No proofs needed. Simplest
+            mode for solo operators.
           </p>
-          <span class="mode-tag mode-tag-simple">SINGLE TX</span>
+          <span class="mode-badge">SINGLE TX</span>
         </div>
         <div class="mode-card">
-          <div class="mode-icon">&#x1F465;</div>
-          <h3>Social / Guardian</h3>
-          <p>
-            M-of-N guardians vote to approve a new owner. Once the threshold
-            is met, the timelock starts automatically. Nonce increments
-            invalidate stale votes on cancel.
+          <div class="mode-num-row"><span>03</span></div>
+          <h3 class="mode-title">Social / Guardian</h3>
+          <p class="mode-desc">
+            M-of-N guardians vote to approve. Timelock starts when threshold is met.
+            Nonce increments invalidate stale votes on cancel.
           </p>
-          <span class="mode-tag mode-tag-simple">M-OF-N</span>
+          <span class="mode-badge">M-OF-N</span>
+        </div>
+        <div class="mode-card">
+          <div class="mode-num-row"><span>04</span></div>
+          <h3 class="mode-title">Humanity proof (pluggable)</h3>
+          <p class="mode-desc">
+            World ID today, any ZK humanity proof tomorrow. Identity layer is intentionally
+            modular.
+          </p>
+          <span class="mode-badge">PLUGGABLE</span>
         </div>
       </div>
     </div>
   </section>
 
-  <div class="divider"></div>
-
   <!-- How it works -->
-  <section id="how">
+  <section class="section" id="how">
     <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">How it works</div>
-        <h2>Register, recover,<br />execute</h2>
-        <p class="section-desc">
-          Spectre does not deploy agents &mdash; it protects existing ones.
-          Register a recovery config, then recover when you need to.
+      <div class="section-head reveal">
+        <span class="section-tag">How it works</span>
+        <h2 class="section-h2">Register once. Recover when you need to.</h2>
+        <p class="section-sub">
+          Spectre does not deploy agents. It protects existing ones. Register a recovery
+          config, then recover when you need to.
         </p>
       </div>
-      <div class="steps">
+
+      <div class="section-body steps reveal">
         <div class="step">
           <div class="step-num">01</div>
-          <h3>Register</h3>
-          <p>Owner registers a recovery config for their agent wallet. On-chain: SHA256 of recovery email, timelock
-            duration, optional guardians and backup wallet.</p>
+          <div class="step-body">
+            <h3>Register</h3>
+            <p>
+              Owner registers a recovery config for their agent wallet. On-chain: SHA256
+              of recovery email, timelock duration, optional guardians and backup wallet.
+            </p>
+          </div>
         </div>
         <div class="step">
           <div class="step-num">02</div>
-          <h3>Initiate recovery</h3>
-          <p>Send a recovery email with the new key + nonce in the body. Generate a ZK proof of the DKIM signature.
-            Verify with World ID. Submit both proofs on-chain.</p>
+          <div class="step-body">
+            <h3>Initiate recovery</h3>
+            <p>
+              Send a recovery email with the new key + nonce in the body. Generate a ZK
+              proof of the DKIM signature. Verify with World ID. Submit both proofs on-chain.
+            </p>
+          </div>
         </div>
         <div class="step">
           <div class="step-num">03</div>
-          <h3>Execute</h3>
-          <p>After the timelock expires, anyone can finalize. The agent record gets the new owner. Nonce increments. The
-            old key loses control.</p>
+          <div class="step-body">
+            <h3>Execute</h3>
+            <p>
+              After the timelock expires, anyone can finalize. The agent record gets the
+              new owner. Nonce increments. The old key loses control.
+            </p>
+          </div>
         </div>
       </div>
 
-      <div class="flow-block">
-        <div class="flow-header">email + world id recovery flow</div>
-        <div class="flow-body">Owner sends email: body = <span class="hl">{newKey}:{nonce}</span>
+      <div class="code-block reveal">
+        <div class="code-bar">
+          <span class="code-bar-dots"><span></span><span></span><span></span></span>
+          <span class="code-bar-title">email + world id recovery flow</span>
+        </div>
+        <div class="code-body">Owner sends email: body = <span class="accent">{newKey}:{nonce}</span>
           |
           v
-          Relayer parses .eml, extracts <span class="hl">DKIM signature</span>
+          Relayer parses .eml, extracts <span class="accent">DKIM signature</span>
           |
           v
           Noir circuit proves DKIM valid + email hash matches + body = recovery params
           |
           v
-          Owner scans <span class="hl">World ID</span> QR (proves human, binds signal to recovery)
+          Owner scans <span class="accent">World ID</span> QR (proves human, binds signal to recovery)
           |
           v
-          <span class="hl">SpectreRegistry.initiateRecovery()</span> verifies both proofs on-chain
+          <span class="accent">SpectreRegistry.initiateRecovery()</span> verifies both proofs on-chain
           |
           v
-          Timelock starts (<span class="warn">~24h on mainnet</span>)
+          Timelock starts (~24h on mainnet)
           |
-          +-- <span class="ok">Owner cancels</span> --> recovery cleared, nonce + 1
+          +-- <span class="gold">Owner cancels</span> --> recovery cleared, nonce + 1
           |
-          +-- Timelock elapses --> <span class="ok">executeRecovery()</span> rotates owner key
+          +-- Timelock elapses --> <span class="accent">executeRecovery()</span> rotates owner key
         </div>
       </div>
     </div>
   </section>
-
-  <div class="divider"></div>
 
   <!-- Architecture -->
-  <section id="architecture">
+  <section class="section section-alt" id="architecture">
     <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">Architecture</div>
-        <h2>Four components,<br />one protocol</h2>
-        <p class="section-desc">
-          A Noir ZK circuit, Solidity contracts, a TypeScript relayer, and a
-          World ID frontend &mdash; each independently verifiable.
+      <div class="section-head reveal">
+        <span class="section-tag">Architecture</span>
+        <h2 class="section-h2">Four components. One protocol.</h2>
+        <p class="section-sub">
+          A Noir ZK circuit, Solidity contracts, a TypeScript relayer, and a World ID
+          frontend. Each independently verifiable.
         </p>
       </div>
-      <div class="arch-grid">
+
+      <div class="section-body arch-grid reveal">
         <div class="arch-card">
-          <h3>circuits/</h3>
-          <p>
-            Noir ZK circuit for DKIM email verification. Proves RSA-2048
-            signature validity, FROM address hash, and body content &mdash; all
-            without revealing the email. Compiled to UltraHonk proofs via
-            Barretenberg.
+          <div class="arch-path">circuits/</div>
+          <h3 class="arch-title">Noir DKIM circuit</h3>
+          <p class="arch-desc">
+            Proves RSA-2048 signature validity, FROM address hash, and body content,
+            without revealing the email. Compiled to UltraHonk proofs via Barretenberg.
           </p>
         </div>
         <div class="arch-card">
-          <h3>contracts/</h3>
-          <p>
-            Solidity smart contracts on Base. <code>SpectreRegistry</code> manages
-            agent records and enforces recovery rules. <code>Verifier.sol</code>
-            (auto-generated) verifies UltraHonk proofs on-chain. Built with Foundry.
+          <div class="arch-path">contracts/</div>
+          <h3 class="arch-title">Solidity contracts</h3>
+          <p class="arch-desc">
+            <span class="mono">SpectreRegistry</span> manages agent records and enforces recovery rules.
+            <span class="mono">HonkVerifier</span> verifies UltraHonk proofs on-chain. Built with Foundry.
           </p>
         </div>
         <div class="arch-card">
-          <h3>relayer/</h3>
-          <p>
-            TypeScript off-chain service. Parses <code>.eml</code> files, fetches DKIM
-            keys from DNS, generates ZK witnesses, builds proofs via <code>nargo</code> +
-            <code>bb</code>, and submits transactions. Full CLI for all recovery operations.
+          <div class="arch-path">relayer/</div>
+          <h3 class="arch-title">TypeScript relayer + CLI</h3>
+          <p class="arch-desc">
+            Parses <span class="mono">.eml</span> files, fetches DKIM keys from DNS, generates ZK witnesses,
+            builds proofs via <span class="mono">nargo</span> + <span class="mono">bb</span>, submits transactions.
           </p>
         </div>
         <div class="arch-card">
-          <h3>world-id-ui/</h3>
-          <p>
-            React frontend for World ID proof generation. User fills in recovery
-            parameters, scans with World App, and gets a Semaphore proof. Signal
-            binds the proof to the specific recovery (owner + newOwner + nonce).
+          <div class="arch-path">world-id-ui/</div>
+          <h3 class="arch-title">World ID frontend</h3>
+          <p class="arch-desc">
+            React UI for World ID proof generation. Signal binds the proof to the specific
+            recovery (owner + newOwner + nonce).
+          </p>
+        </div>
+      </div>
+
+      <h3 class="arch-sub-head reveal">What the proof verifies</h3>
+      <div class="proof-grid reveal">
+        <div class="proof-card">
+          <div class="proof-icon">RSA</div>
+          <div class="proof-title">RSA-2048 DKIM signature</div>
+          <p class="proof-desc">
+            Proves the email was signed by the sender's mail server. Public key verified
+            against DNS.
+          </p>
+        </div>
+        <div class="proof-card">
+          <div class="proof-icon">@</div>
+          <div class="proof-title">FROM address hash</div>
+          <p class="proof-desc">
+            SHA256 of the sender's email matches the on-chain commitment. The actual
+            address is never revealed.
+          </p>
+        </div>
+        <div class="proof-card">
+          <div class="proof-icon">{ }</div>
+          <div class="proof-title">Body content binding</div>
+          <p class="proof-desc">
+            Email body must contain exactly <span class="mono">{recovery_key}:{nonce}</span>, binding
+            the proof to one specific recovery attempt.
+          </p>
+        </div>
+        <div class="proof-card">
+          <div class="proof-icon">#</div>
+          <div class="proof-title">Body hash integrity</div>
+          <p class="proof-desc">
+            The DKIM <span class="mono">bh=</span> header matches SHA256 of the canonicalized body. The
+            body cannot be tampered with.
           </p>
         </div>
       </div>
     </div>
   </section>
 
-  <div class="divider"></div>
-
-  <!-- ZK circuit -->
-  <section id="circuit">
+  <!-- CLI reference + HTTP endpoints -->
+  <section class="section" id="cli">
     <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">ZK circuit</div>
-        <h2>What the proof verifies</h2>
-        <p class="section-desc">
-          The Noir circuit generates a zero-knowledge proof that the recovery
-          email is authentic &mdash; without revealing the email address or contents.
+      <div class="section-head reveal">
+        <span class="section-tag">CLI reference</span>
+        <h2 class="section-h2">Developer commands</h2>
+        <p class="section-sub">
+          All recovery operations are available through the relayer CLI. Run from the
+          <span class="mono">relayer/</span> directory.
         </p>
       </div>
-      <div class="phases">
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">RSA-2048 DKIM signature</div>
-            <div class="phase-desc">Proves the email was signed by the sender's mail server. The RSA public key is a
-              public input verified against DNS.</div>
-          </div>
-        </div>
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">FROM address hash</div>
-            <div class="phase-desc">SHA256 of the sender's email address matches the on-chain commitment. The actual
-              address is never revealed on-chain.</div>
-          </div>
-        </div>
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">Body content binding</div>
-            <div class="phase-desc">Email body must contain exactly <code
-                style="font-family:'Space Mono',monospace;font-size:0.72rem;background:var(--surface2);padding:0.1rem 0.3rem;border-radius:2px;color:var(--text)">{recovery_key}:{nonce}</code>,
-              binding the proof to a specific recovery attempt.</div>
-          </div>
-        </div>
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">Body hash integrity</div>
-            <div class="phase-desc">The DKIM bh= header matches the SHA256 of the canonicalized body, proving the body
-              hasn't been tampered with.</div>
-          </div>
-        </div>
+
+      <div class="section-body table-card reveal">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>npm run register</td>
+              <td>Register agent with email hash + timelock</td>
+            </tr>
+            <tr>
+              <td>npm run initiate</td>
+              <td>Initiate Email + World ID recovery</td>
+            </tr>
+            <tr>
+              <td>npm run cancel</td>
+              <td>Cancel pending recovery (owner only)</td>
+            </tr>
+            <tr>
+              <td>npm run execute</td>
+              <td>Execute recovery after timelock elapses</td>
+            </tr>
+            <tr>
+              <td>npm run check</td>
+              <td>View agent record and recovery status</td>
+            </tr>
+            <tr>
+              <td>npm run set-backup</td>
+              <td>Set backup wallet address</td>
+            </tr>
+            <tr>
+              <td>npm run initiate-backup</td>
+              <td>Initiate backup wallet recovery</td>
+            </tr>
+            <tr>
+              <td>npm run set-guardians</td>
+              <td>Configure guardian addresses + threshold</td>
+            </tr>
+            <tr>
+              <td>npm run approve-guardian</td>
+              <td>Guardian votes for a recovery</td>
+            </tr>
+            <tr>
+              <td>npm run server</td>
+              <td>Start the HTTP prover API</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </div>
-  </section>
 
-  <div class="divider"></div>
-
-  <!-- CLI -->
-  <section id="cli">
-    <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">CLI reference</div>
-        <h2>Developer commands</h2>
-        <p class="section-desc">
-          All recovery operations are available through the relayer CLI.
-          Run from the <code
-            style="font-family:'Space Mono',monospace;font-size:0.85rem;background:var(--surface2);padding:0.1rem 0.4rem;border-radius:2px;color:var(--text)">relayer/</code>
-          directory.
-        </p>
-      </div>
-      <table class="cli-table">
-        <thead>
-          <tr>
-            <th>Command</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>npm run register</td>
-            <td>Register agent with email hash + timelock</td>
-          </tr>
-          <tr>
-            <td>npm run initiate</td>
-            <td>Initiate Email + World ID recovery</td>
-          </tr>
-          <tr>
-            <td>npm run cancel</td>
-            <td>Cancel pending recovery (owner only)</td>
-          </tr>
-          <tr>
-            <td>npm run execute</td>
-            <td>Execute recovery after timelock elapses</td>
-          </tr>
-          <tr>
-            <td>npm run check</td>
-            <td>View agent record and recovery status</td>
-          </tr>
-          <tr>
-            <td>npm run set-backup</td>
-            <td>Set backup wallet address</td>
-          </tr>
-          <tr>
-            <td>npm run initiate-backup</td>
-            <td>Initiate backup wallet recovery</td>
-          </tr>
-          <tr>
-            <td>npm run set-guardians</td>
-            <td>Configure guardian addresses + threshold</td>
-          </tr>
-          <tr>
-            <td>npm run approve-guardian</td>
-            <td>Guardian votes for a recovery</td>
-          </tr>
-          <tr>
-            <td>npm run server</td>
-            <td>Start the HTTP prover API</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <div class="divider"></div>
-
-  <!-- API -->
-  <section id="api">
-    <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">Prover API</div>
-        <h2>HTTP endpoints</h2>
-        <p class="section-desc">
-          The relayer server exposes a REST API for proof generation and
-          World ID context signing. Runs on port 3001.
-        </p>
-      </div>
-      <div class="api-endpoint">
-        <div class="api-header">
-          <span class="api-method">POST</span>
+      <h3 class="sub-h3 reveal">HTTP endpoints</h3>
+      <div class="api-list reveal">
+        <div class="api-item">
+          <span class="api-method post">POST</span>
           <span class="api-path">/prove</span>
+          <span class="api-desc">Upload a .eml file with recovery params. Returns the ZK proof and public inputs as
+            hex.</span>
         </div>
-        <div class="api-desc">Upload a .eml file with recovery params. Returns the ZK proof and public inputs as hex.
-        </div>
-      </div>
-      <div class="api-endpoint">
-        <div class="api-header">
-          <span class="api-method">POST</span>
+        <div class="api-item">
+          <span class="api-method post">POST</span>
           <span class="api-path">/verify</span>
+          <span class="api-desc">Verify a proof against public inputs and verification key.</span>
         </div>
-        <div class="api-desc">Verify a proof against public inputs and verification key.</div>
-      </div>
-      <div class="api-endpoint">
-        <div class="api-header">
-          <span class="api-method">POST</span>
+        <div class="api-item">
+          <span class="api-method post">POST</span>
           <span class="api-path">/worldid-context</span>
+          <span class="api-desc">Get a signed RP context for the World ID widget. Required before opening the IDKit
+            modal.</span>
         </div>
-        <div class="api-desc">Get a signed RP context for the World ID widget. Required before opening the IDKit modal.
-        </div>
-      </div>
-      <div class="api-endpoint">
-        <div class="api-header">
-          <span class="api-method"
-            style="background:rgba(74,222,128,0.1);color:var(--green);border-color:rgba(74,222,128,0.2)">GET</span>
+        <div class="api-item">
+          <span class="api-method get">GET</span>
           <span class="api-path">/health</span>
+          <span class="api-desc">Health check. Returns <span class="mono">{ ok: true }</span>.</span>
         </div>
-        <div class="api-desc">Health check. Returns <code
-            style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--text)">{ ok: true }</code>.</div>
       </div>
     </div>
   </section>
 
-  <div class="divider"></div>
-
-  <!-- Status -->
-  <section id="status">
+  <!-- Build status -->
+  <section class="section section-alt" id="status">
     <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">Build status</div>
-        <h2>What's built.<br />What's next.</h2>
-        <p class="section-desc">All core functionality is complete and deployed on Base Sepolia testnet.</p>
+      <div class="section-head reveal">
+        <span class="section-tag">Build status</span>
+        <h2 class="section-h2">What's built. What's next.</h2>
+        <p class="section-sub">
+          Core functionality is complete and deployed on Base Sepolia testnet.
+        </p>
       </div>
-      <div class="phases">
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">Noir DKIM Circuit</div>
-            <div class="phase-desc">RSA-2048 verification &middot; SHA256 body hash &middot; FROM address hashing
-              &middot; recovery param parsing &middot; UltraHonk backend</div>
+      <div class="section-body status-list reveal">
+        <div class="status-item">
+          <div class="status-left">
+            <h4>Noir DKIM circuit</h4>
+            <div class="status-detail">RSA-2048 verification · SHA256 body hash · FROM address hashing · recovery param
+              parsing · UltraHonk backend</div>
           </div>
-          <span class="badge badge-done">&check; Complete</span>
+          <span class="status-badge done">✓ Complete</span>
         </div>
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">Smart Contracts</div>
-            <div class="phase-desc">SpectreRegistry &middot; 3 recovery modes &middot; timelock &middot; nonce replay
-              protection &middot; UltraHonk verifier &middot; World ID integration &middot; 26 test cases</div>
+        <div class="status-item">
+          <div class="status-left">
+            <h4>Smart contracts</h4>
+            <div class="status-detail">SpectreRegistry · 3 recovery modes · timelock · nonce replay protection ·
+              UltraHonk verifier · World ID integration · 26 test cases</div>
           </div>
-          <span class="badge badge-done">&check; Complete</span>
+          <span class="status-badge done">✓ Complete</span>
         </div>
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">Relayer + CLI</div>
-            <div class="phase-desc">Email parser &middot; DKIM key fetch &middot; witness builder &middot; proof
-              generation &middot; 10 CLI commands &middot; HTTP prover API</div>
+        <div class="status-item">
+          <div class="status-left">
+            <h4>Relayer + CLI</h4>
+            <div class="status-detail">Email parser · DKIM key fetch · witness builder · proof generation · 10 CLI
+              commands · HTTP prover API</div>
           </div>
-          <span class="badge badge-done">&check; Complete</span>
+          <span class="status-badge done">✓ Complete</span>
         </div>
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">World ID Integration</div>
-            <div class="phase-desc">IDKit v4 widget &middot; RP context signing &middot; Semaphore proof generation
-              &middot; signal binding (owner + newOwner + nonce)</div>
+        <div class="status-item">
+          <div class="status-left">
+            <h4>World ID integration</h4>
+            <div class="status-detail">IDKit v4 widget · RP context signing · Semaphore proof generation · signal
+              binding (owner + newOwner + nonce)</div>
           </div>
-          <span class="badge badge-done">&check; Complete</span>
+          <span class="status-badge done">✓ Complete</span>
         </div>
-        <div class="phase">
-          <div class="phase-left">
-            <div class="phase-name">World ID v4 Upgrade</div>
-            <div class="phase-desc">Migrate from v3 Semaphore proofs to v4 compressed Groth16 when World ID 4.0 exits
+        <div class="status-item">
+          <div class="status-left">
+            <h4>World ID v4 upgrade</h4>
+            <div class="status-detail">Migrate from v3 Semaphore proofs to v4 compressed Groth16 when World ID 4.0 exits
               preview</div>
           </div>
-          <span class="badge badge-next">Planned</span>
+          <span class="status-badge planned">Planned</span>
+        </div>
+        <div class="status-item">
+          <div class="status-left">
+            <h4>CKB implementation</h4>
+            <div class="status-detail">ZK circuits mostly complete from hackathon build. Full implementation in
+              progress, demonstrating protocol is environment-agnostic.</div>
+          </div>
+          <span class="status-badge planned">Coming soon</span>
         </div>
       </div>
     </div>
   </section>
 
-  <div class="divider"></div>
-
   <!-- Contracts -->
-  <section id="contracts">
+  <section class="section" id="contracts">
     <div class="container">
-      <div class="container-narrow">
-        <div class="section-label">Testnet</div>
-        <h2>Live on Base Sepolia</h2>
-        <p class="section-desc">All contracts are deployed and verified. Ready for integration testing.</p>
+      <div class="section-head reveal">
+        <span class="section-tag">Testnet</span>
+        <h2 class="section-h2">Live on Base Sepolia</h2>
+        <p class="section-sub">All contracts are deployed and verified.</p>
       </div>
-      <table class="contracts-table">
-        <thead>
-          <tr>
-            <th>Contract</th>
-            <th>Address</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>SpectreRegistry</td>
-            <td>0xc8458d4B3b67a9a9643d6818dC73D2a10723C551</td>
-          </tr>
-          <tr>
-            <td>HonkVerifier</td>
-            <td>0x8a4C0AdAFe442A9c9E7Aaf7815bD92fd3F961917</td>
-          </tr>
-          <tr>
-            <td>World ID Router</td>
-            <td>0x42FF98C4E85212a5D31358ACbFe76a621b784Fac</td>
-          </tr>
-        </tbody>
-      </table>
-      <p style="font-size:0.78rem; color:var(--muted); margin-top:1rem">
+      <div class="section-body table-card reveal">
+        <table class="data-table contracts">
+          <thead>
+            <tr>
+              <th>Contract</th>
+              <th>Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SpectreRegistry</td>
+              <td>0xc8458d4B3b67a9a9643d6818dC73D2a10723C551</td>
+            </tr>
+            <tr>
+              <td>HonkVerifier</td>
+              <td>0x8a4C0AdAFe442A9c9E7Aaf7815bD92fd3F961917</td>
+            </tr>
+            <tr>
+              <td>World ID Router</td>
+              <td>0x42FF98C4E85212a5D31358ACbFe76a621b784Fac</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="contracts-note reveal">
         Full setup guide and CLI commands in the
-        <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener"
-          style="color:var(--blue)">repo README &rarr;</a>
+        <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener">repo
+          README ↗</a>
       </p>
     </div>
   </section>
 
-  <div class="divider"></div>
+  <!-- Team -->
+  <section class="section section-alt" id="team">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-tag">Team</span>
+        <h2 class="section-h2">Built by protocol engineers who know ZK.</h2>
+        <p class="section-sub">
+          Two Nairobi-based engineers with deep backgrounds in programmable cryptography
+          and protocol design. Both are graduates of the Polkadot Blockchain Academy
+          (PBA7, Bali).
+        </p>
+      </div>
+      <div class="section-body team-grid reveal">
+        <article class="team-card">
+          <div class="team-avatar">CM</div>
+          <h3 class="team-name">Cecilia Mulandi</h3>
+          <div class="team-role">Founder · Protocol Engineering</div>
+          <p class="team-bio">
+            Blockchain engineer focused on ZK circuits and smart contract development.
+
+          </p>
+          <!-- <div class="team-tags">
+            <span class="team-tag">Noir / ZK</span>
+            <span class="team-tag">Solidity</span>
+            <span class="team-tag">Rust</span>
+            <span class="team-tag">TypeScript</span>
+            <span class="team-tag">PBA7</span>
+            <span class="team-tag">Polkadot Africa</span>
+          </div> -->
+          <div class="team-divider"></div>
+          <div class="team-links">
+            <a href="https://github.com/CECILIA-MULANDI" target="_blank" rel="noopener">github.com/CECILIA-MULANDI</a>
+            <a href="https://twitter.com/kashortgirl" target="_blank" rel="noopener">@kashortgirl</a>
+          </div>
+        </article>
+        <article class="team-card">
+          <div class="team-avatar">LM</div>
+          <h3 class="team-name">Lynette Mwangi</h3>
+          <div class="team-role">Co-founder · Protocol Engineering</div>
+          <p class="team-bio">
+            Blockchain engineer specialising in programmable cryptography and ZK proof
+            systems.
+          </p>
+          <!-- <div class="team-tags">
+            <span class="team-tag">Programmable cryptography</span>
+            <span class="team-tag">Rust</span>
+            <span class="team-tag">ink!</span>
+            <span class="team-tag">Noir</span>
+            <span class="team-tag">PBA7</span>
+          </div> -->
+          <div class="team-divider"></div>
+          <div class="team-links">
+            <a href="https://github.com/Lynette7" target="_blank" rel="noopener">github.com/Lynette7</a>
+            <a href="https://twitter.com/Lynette_mwangi" target="_blank" rel="noopener">@Lynette_mwangi</a>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
 
   <!-- CTA -->
-  <section id="cta">
-    <div class="container-narrow">
-      <h2>Key recovery is<br />critical infrastructure</h2>
-      <p>As autonomous agents manage more valuable assets, losing a key cannot mean losing everything. Spectre makes
-        recovery trustless, time-safe, and ZK-private.</p>
-      <div class="hero-actions">
-        <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener"
-          class="btn btn-white">View on GitHub</a>
+  <section class="cta" id="contact">
+    <div class="cta-glow" aria-hidden="true"></div>
+    <div class="container">
+      <div class="reveal">
+        <span class="section-tag">Get in touch</span>
+        <h2 class="section-h2">Key recovery is critical infrastructure.</h2>
+        <p class="section-sub">
+          As autonomous agents manage more valuable assets, losing a key cannot mean
+          losing everything. Spectre makes recovery trustless, time-safe, and ZK-private.
+        </p>
+        <div class="cta-actions">
+          <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener"
+            class="btn btn-primary">View on GitHub ↗</a>
+          <a href="mailto:hello@spectreprotocol.xyz" class="btn btn-secondary">hello@spectreprotocol.xyz</a>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- Footer -->
   <footer>
-    <div class="footer-logo">
-      <span>SPECTRE PROTOCOL</span>
+    <div class="footer-brand">
+      <svg width="22" height="22" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <polygon points="6,4 22,4 20,9 8,9" fill="currentColor" fill-opacity="0.9" />
+        <polygon points="4,9 20,9 18,14 6,14" fill="currentColor" fill-opacity="0.6" />
+        <polygon points="8,14 22,14 20,19 6,19" fill="currentColor" fill-opacity="0.45" />
+        <polygon points="4,19 18,19 16,23 4,23" fill="currentColor" fill-opacity="0.25" />
+        <circle cx="22" cy="4" r="1.6" fill="#F0C040" />
+      </svg>
+      <span class="footer-wordmark">Spectre Protocol</span>
     </div>
-    <p><a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener">GitHub</a>
-      &middot; <a href="https://base.org" target="_blank" rel="noopener">Base</a></p>
+    <nav class="footer-links" aria-label="Footer">
+      <a href="https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://twitter.com/kashortgirl" target="_blank" rel="noopener">Twitter</a>
+      <a href="https://base.org" target="_blank" rel="noopener">Base</a>
+      <a href="mailto:hello@spectreprotocol.xyz">hello@spectreprotocol.xyz</a>
+    </nav>
   </footer>
+  <div class="footer-gold-line" aria-hidden="true"></div>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var btn = document.getElementById('theme-toggle');
+      var label = document.getElementById('theme-toggle-label');
+      var stored = null;
+      try { stored = localStorage.getItem('spectre-theme'); } catch (e) { }
+      if (stored === 'light') {
+        root.setAttribute('data-theme', 'light');
+        label.textContent = '☀ Light';
+      }
+      btn.addEventListener('click', function () {
+        var isLight = root.getAttribute('data-theme') === 'light';
+        if (isLight) {
+          root.removeAttribute('data-theme');
+          label.textContent = '🌙 Dark';
+          try { localStorage.setItem('spectre-theme', 'dark'); } catch (e) { }
+        } else {
+          root.setAttribute('data-theme', 'light');
+          label.textContent = '☀ Light';
+          try { localStorage.setItem('spectre-theme', 'light'); } catch (e) { }
+        }
+      });
+
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              io.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+      } else {
+        document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('visible'); });
+      }
+    })();
+  </script>
 
 </body>
 
