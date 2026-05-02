@@ -669,6 +669,120 @@
       color: var(--gold);
     }
 
+    /* ── Demo terminal ───────────────────────────────── */
+    .demo-terminal {
+      margin-top: 48px;
+      border: 0.5px solid rgba(255,255,255,0.10);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    [data-theme='light'] .demo-terminal {
+      border-color: rgba(0,0,0,0.18);
+    }
+
+    .demo-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 38px;
+      background: #0D0D0D;
+      border-bottom: 0.5px solid rgba(255,255,255,0.07);
+    }
+
+    .demo-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .demo-bar-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00C9A7;
+      animation: pulse 2s ease infinite;
+    }
+
+    .demo-bar-title {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.04em;
+    }
+
+    .demo-bar-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .demo-btn {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 5px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s, transform 0.15s;
+      letter-spacing: 0.03em;
+    }
+
+    .demo-btn:hover {
+      opacity: 0.85;
+      transform: translateY(-1px);
+    }
+
+    .demo-btn-run {
+      background: #00C9A7;
+      color: #0A0E1A;
+    }
+
+    .demo-btn-reset {
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.55);
+    }
+
+    .demo-body {
+      padding: 20px 22px;
+      min-height: 260px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 1.9;
+      color: rgba(255,255,255,0.55);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .demo-body .d-prompt { color: #00C9A7; }
+    .demo-body .d-cmd    { color: rgba(255,255,255,0.85); }
+    .demo-body .d-ok     { color: #00C9A7; }
+    .demo-body .d-warn   { color: #F0C040; }
+    .demo-body .d-dim    { color: rgba(255,255,255,0.3); }
+    .demo-body .d-hash   { color: #7CB9FF; }
+    .demo-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: #00C9A7;
+      vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .demo-footer {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 22px;
+      background: #0D0D0D;
+      border-top: 0.5px solid rgba(255,255,255,0.07);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      color: rgba(255,255,255,0.3);
+    }
+
     /* ── Architecture ─────────────────────────────────── */
     .arch-grid {
       display: grid;
@@ -1454,6 +1568,26 @@
           +-- Timelock elapses --> <span class="accent">executeRecovery()</span> rotates owner key
         </div>
       </div>
+
+      <!-- Demo terminal -->
+      <div class="demo-terminal reveal" id="demo-terminal">
+        <div class="demo-bar">
+          <div class="demo-bar-left">
+            <span class="demo-bar-dot"></span>
+            <span class="demo-bar-title">relayer.session · base-sepolia</span>
+          </div>
+          <div class="demo-bar-actions">
+            <button class="demo-btn demo-btn-run" id="demo-run">▶ run recovery</button>
+            <button class="demo-btn demo-btn-reset" id="demo-reset">reset</button>
+          </div>
+        </div>
+        <div class="demo-body" id="demo-body"><span class="d-prompt"># </span><span class="d-dim">spectre-relayer · base-sepolia · idle</span>
+<span class="demo-cursor"></span></div>
+        <div class="demo-footer">
+          <span>spectre/cli · v0.4.1</span>
+          <span id="demo-lines">1 lines</span>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1862,6 +1996,87 @@
           try { localStorage.setItem('spectre-theme', 'light'); } catch (e) { }
         }
       });
+
+      // ── Demo terminal ──────────────────────────────────
+      (function () {
+        var body = document.getElementById('demo-body');
+        var linesEl = document.getElementById('demo-lines');
+        var runBtn = document.getElementById('demo-run');
+        var resetBtn = document.getElementById('demo-reset');
+        var running = false;
+        var timeouts = [];
+
+        var SCRIPT = [
+          { t: 0,    html: '<span class="d-prompt">$ </span><span class="d-cmd">npm run register --agent 0x4e7a91c…</span>' },
+          { t: 900,  html: '<span class="d-ok">✓ agent registered · emailHash <span class="d-hash">0x9f4b…</span> · timelock 86400s</span>' },
+          { t: 1600, html: '' },
+          { t: 1700, html: '<span class="d-prompt">$ </span><span class="d-cmd">npm run initiate -- recovery.eml</span>' },
+          { t: 2500, html: '<span class="d-dim">· parsing .eml · dkim selector=20230601 domain=protonmail.com</span>' },
+          { t: 3100, html: '<span class="d-dim">· fetching DKIM key from DNS · <span class="d-ok">✓</span></span>' },
+          { t: 3800, html: '<span class="d-dim">· building witness · 1.4s</span>' },
+          { t: 5400, html: '<span class="d-dim">· generating UltraHonk proof · 2.1s</span>' },
+          { t: 7600, html: '<span class="d-ok">✓ proof generated · 14.2 KB</span>' },
+          { t: 8200, html: '' },
+          { t: 8300, html: '<span class="d-prompt">$ </span><span class="d-cmd">worldid signal = keccak256(owner || newOwner || nonce)</span>' },
+          { t: 9800, html: '<span class="d-ok">✓ World ID proof received · semaphore root <span class="d-hash">0x71c4…</span></span>' },
+          { t: 10400,html: '' },
+          { t: 10500,html: '<span class="d-prompt">$ </span><span class="d-cmd">SpectreRegistry.initiateRecovery(proof, signal)</span>' },
+          { t: 11400,html: '<span class="d-ok">✓ tx <span class="d-hash">0xa31f…b08e</span> mined · timelock started</span>' },
+          { t: 12000,html: '<span class="d-warn">⏱ timelock active · 86400s · owner may cancel</span>' },
+          { t: 12800,html: '' },
+          { t: 12900,html: '<span class="d-prompt">$ </span><span class="d-cmd">npm run execute</span>' },
+          { t: 13800,html: '<span class="d-ok">✓ tx <span class="d-hash">0xee30…41a2</span> mined · owner = <span class="d-hash">0xb12f…ff03</span> · nonce = 4</span>' },
+          { t: 14400,html: '<span class="d-dim"># old key invalidated · agent operational under new key</span>' },
+        ];
+
+        function countLines() {
+          return (body.innerText || '').split('\n').length;
+        }
+
+        function appendLine(html) {
+          var cursor = body.querySelector('.demo-cursor');
+          if (cursor) cursor.remove();
+          body.innerHTML += '\n' + html;
+          body.innerHTML += '<span class="demo-cursor"></span>';
+          linesEl.textContent = countLines() + ' lines';
+          body.scrollTop = body.scrollHeight;
+        }
+
+        function reset() {
+          timeouts.forEach(clearTimeout);
+          timeouts = [];
+          running = false;
+          runBtn.disabled = false;
+          runBtn.textContent = '▶ run recovery';
+          body.innerHTML = '<span class="d-prompt"># </span><span class="d-dim">spectre-relayer · base-sepolia · idle</span>\n<span class="demo-cursor"></span>';
+          linesEl.textContent = '1 lines';
+        }
+
+        function run() {
+          if (running) return;
+          running = true;
+          runBtn.disabled = true;
+          runBtn.textContent = '· running';
+
+          SCRIPT.forEach(function (step) {
+            var id = setTimeout(function () {
+              appendLine(step.html);
+            }, step.t);
+            timeouts.push(id);
+          });
+
+          var total = SCRIPT[SCRIPT.length - 1].t + 800;
+          var doneId = setTimeout(function () {
+            running = false;
+            runBtn.disabled = false;
+            runBtn.textContent = '▶ run recovery';
+          }, total);
+          timeouts.push(doneId);
+        }
+
+        runBtn.addEventListener('click', run);
+        resetBtn.addEventListener('click', reset);
+      })();
 
       if ('IntersectionObserver' in window) {
         var io = new IntersectionObserver(function (entries) {
