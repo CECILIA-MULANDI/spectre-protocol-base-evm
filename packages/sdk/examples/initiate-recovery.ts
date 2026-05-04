@@ -28,14 +28,14 @@ async function main() {
   console.log()
 
   console.log("Initiating email recovery...")
-  const tx = await client.initiateEmailRecovery({
+  const { hash } = await client.initiateEmailRecovery({
     eml,
     agentOwner,
     newOwner,
     nonce,
     worldIdProof,
   })
-  console.log("TX hash:", tx)
+  console.log("TX hash:", hash)
 
   const status = await client.getRecoveryStatus(agentOwner)
   console.log("Timelock runs until block:", status.executeAfterBlock.toString())

@@ -12,11 +12,11 @@ const client = new SpectreClient({
 
 async function main() {
   console.log("Registering agent...")
-  const { tx, emailHash } = await client.register(
+  const { hash, emailHash } = await client.register(
     "alice@gmail.com",
     10n
   )
-  console.log("TX hash:   ", tx)
+  console.log("TX hash:   ", hash)
   console.log("Email hash:", emailHash)
 
   const ownerAddress = process.env.OWNER_ADDRESS as `0x${string}`

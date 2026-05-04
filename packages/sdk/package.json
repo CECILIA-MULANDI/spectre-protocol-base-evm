@@ -1,6 +1,9 @@
 {
-  "name": "@spectre/sdk",
-  "version": "0.1.0",
+  "name": "@spectre-protocol/sdk",
+  "version": "0.1.1",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "SDK for Spectre Protocol — ZK account recovery for AI agents on Base",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,7 +33,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/CECILIA-MULANDI/spectre-evm"
+    "url": "https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm"
   },
   "dependencies": {
     "viem": "^2.0.0"
