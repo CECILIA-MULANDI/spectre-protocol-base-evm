@@ -4,7 +4,7 @@ Zero-knowledge account recovery for AI agents on Base. Spectre lets agent owners
 
 ## How it works
 
-An agent owner registers with an email hash. To recover, they send a recovery email and verify their identity with World ID. The protocol verifies both proofs on-chain and starts a timelock — giving the real owner time to cancel if the attempt is fraudulent.
+An agent owner registers with an email hash. To recover, they send a recovery email and verify their identity with World ID. The protocol verifies both proofs on-chain and starts a timelock - giving the real owner time to cancel if the attempt is fraudulent.
 
 Three recovery modes:
 
@@ -19,7 +19,7 @@ All modes enforce a timelock before the key rotation finalizes.
 ## Architecture
 
 ```
-circuits/          Noir ZK circuit — DKIM email signature verification
+circuits/          Noir ZK circuit - DKIM email signature verification
 contracts/         Solidity smart contracts (Foundry)
 relayer/           TypeScript CLI + HTTP prover API
 world-id-ui/       React frontend for World ID proof generation
@@ -51,9 +51,9 @@ Owner sends recovery email
 
 ## Prerequisites
 
-- [Foundry](https://book.getfoundry.sh/getting-started/installation) — Solidity toolchain
-- [Nargo](https://noir-lang.org/docs/getting_started/installation) — Noir compiler
-- [Barretenberg](https://github.com/AztecProtocol/barretenberg) (`bb`) — proof backend
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) - Solidity toolchain
+- [Nargo](https://noir-lang.org/docs/getting_started/installation) - Noir compiler
+- [Barretenberg](https://github.com/AztecProtocol/barretenberg) (`bb`) - proof backend
 - [Node.js](https://nodejs.org/) >= 18
 - A [World ID](https://developer.worldcoin.org) app (for human verification)
 
@@ -138,7 +138,7 @@ The server runs on port 3001 and provides:
 
 ### Email + World ID recovery
 
-**Step 1** — Compose a recovery email from the registered address:
+**Step 1** - Compose a recovery email from the registered address:
 
 ```
 To: (any address)
@@ -147,15 +147,15 @@ Body: {recovery_key}:{nonce}
 
 The nonce comes from `SpectreRegistry.getRecord(agentOwner).nonce`. Download the sent email as `.eml`.
 
-**Step 2** — Generate a World ID proof using the `world-id-ui` frontend. Fill in the agent owner address, new owner address, and nonce. Save the output as `worldid-proof.json`.
+**Step 2** - Generate a World ID proof using the `world-id-ui` frontend. Fill in the agent owner address, new owner address, and nonce. Save the output as `worldid-proof.json`.
 
-**Step 3** — Initiate recovery:
+**Step 3** - Initiate recovery:
 
 ```bash
 npm run initiate <path/to/email.eml> <newOwnerAddress> <path/to/worldid-proof.json>
 ```
 
-**Step 4** — Wait for the timelock to elapse, then execute:
+**Step 4** - Wait for the timelock to elapse, then execute:
 
 ```bash
 npm run execute
@@ -208,10 +208,10 @@ This increments the nonce, invalidating any stale guardian votes or proofs.
 
 The Noir circuit (`circuits/src/main.nr`) verifies:
 
-1. **RSA-2048 DKIM signature** — proves the email was signed by the sender's mail server
-2. **FROM address hash** — matches the on-chain registered email hash (without revealing the email)
-3. **Body content** — email body contains `{recovery_key}:{nonce}`, binding the proof to a specific recovery attempt
-4. **Body hash** — DKIM `bh=` header matches SHA256 of the canonical body
+1. **RSA-2048 DKIM signature** - proves the email was signed by the sender's mail server
+2. **FROM address hash** - matches the on-chain registered email hash (without revealing the email)
+3. **Body content** - email body contains `{recovery_key}:{nonce}`, binding the proof to a specific recovery attempt
+4. **Body hash** - DKIM `bh=` header matches SHA256 of the canonical body
 
 Build and test the circuit:
 
@@ -227,10 +227,10 @@ bb prove -s ultra_honk -b target/spectre.json -w target/spectre.gz \
 
 `SpectreRegistry.sol` manages agent records and enforces recovery rules:
 
-- **Registration** — `register(emailHash, timelockBlocks)` creates an agent record
-- **Dual verification** — `initiateRecovery()` verifies both the DKIM ZK proof (via UltraHonk verifier) and World ID Semaphore proof (via World ID router)
-- **Timelock** — all recovery modes are staged for a configurable block window (min 10 blocks testnet, 7200 blocks ~24h mainnet)
-- **Replay protection** — nonce increments on cancel/execute; World ID nullifiers are single-use
+- **Registration** - `register(emailHash, timelockBlocks)` creates an agent record
+- **Dual verification** - `initiateRecovery()` verifies both the DKIM ZK proof (via UltraHonk verifier) and World ID Semaphore proof (via World ID router)
+- **Timelock** - all recovery modes are staged for a configurable block window (min 10 blocks testnet, 7200 blocks ~24h mainnet)
+- **Replay protection** - nonce increments on cancel/execute; World ID nullifiers are single-use
 
 Run tests:
 
