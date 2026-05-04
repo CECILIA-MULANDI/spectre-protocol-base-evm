@@ -1,6 +1,7 @@
 [profile.default]
 src = "src"
 out = "out"
+script = "scripts"
 libs = ["lib"]
 solc = "0.8.27"
 optimizer = true
