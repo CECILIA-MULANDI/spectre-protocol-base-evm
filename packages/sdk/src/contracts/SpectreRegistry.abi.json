@@ -13,6 +13,11 @@
         "internalType": "address"
       },
       {
+        "name": "_dkimRegistry",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "_worldIdGroupId",
         "type": "uint256",
         "internalType": "uint256"
@@ -21,6 +26,11 @@
         "name": "_externalNullifier",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "_defaultTimelockBlocks",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "stateMutability": "nonpayable"
@@ -34,19 +44,6 @@
         "name": "",
         "type": "uint8",
         "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_TIMELOCK_BLOCKS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
       }
     ],
     "stateMutability": "view"
@@ -100,6 +97,32 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "defaultTimelockBlocks",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "dkimRegistry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IDKIMRegistry"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -451,6 +474,19 @@
   {
     "type": "function",
     "name": "register",
+    "inputs": [
+      {
+        "name": "emailHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerWithCustomTimelock",
     "inputs": [
       {
         "name": "emailHash",

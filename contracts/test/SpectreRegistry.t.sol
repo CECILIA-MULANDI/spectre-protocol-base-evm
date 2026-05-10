@@ -18,14 +18,29 @@ contract MockWorldID {
     ) external pure {}
 }
 
+/// @dev Permissive DKIM registry — every key is "known".
+///      Use for tests that don't exercise the registry gate itself.
+contract MockDKIMRegistry {
+    function isKnown(bytes32) external pure returns (bool) { return true; }
+}
+
+/// @dev Restrictive DKIM registry — every key is "unknown".
+///      Use for the negative test that confirms unknown keys are rejected.
+contract DenyAllDKIMRegistry {
+    function isKnown(bytes32) external pure returns (bool) { return false; }
+}
+
 contract SpectreRegistryTest is Test {
-    SpectreRegistry registry;
-    MockVerifier    mockVerifier;
-    MockWorldID     mockWorldId;
+    SpectreRegistry  registry;
+    MockVerifier     mockVerifier;
+    MockWorldID      mockWorldId;
+    MockDKIMRegistry mockDkim;
 
     address owner    = address(0x1);
     address newOwner = address(0x2);
     bytes32 emailHash = keccak256("owner@example.com");
+
+    uint64 constant DEFAULT_TL = 7200;
 
     // helpers
     bytes      proof  = hex"00";
@@ -35,14 +50,36 @@ contract SpectreRegistryTest is Test {
     function setUp() public {
         mockVerifier = new MockVerifier();
         mockWorldId  = new MockWorldID();
-        registry     = new SpectreRegistry(address(mockVerifier), address(mockWorldId), 1, 1);
+        mockDkim     = new MockDKIMRegistry();
+        registry     = new SpectreRegistry(
+            address(mockVerifier),
+            address(mockWorldId),
+            address(mockDkim),
+            1,
+            1,
+            DEFAULT_TL
+        );
+        inputs = _buildInputs(emailHash, newOwner, 1);
+    }
+
+    /// Build the 70-field public-input array the contract now requires.
+    /// Slots [0..35] (pubkey limbs) are left zero — the mock verifier ignores them.
+    function _buildInputs(bytes32 emailHash_, address newOwner_, uint256 nonce_)
+        internal pure returns (bytes32[] memory pi)
+    {
+        pi = new bytes32[](70);
+        for (uint256 i = 0; i < 32; i++) {
+            pi[36 + i] = bytes32(uint256(uint8(emailHash_[i])));
+        }
+        pi[68] = bytes32(uint256(uint160(newOwner_)));
+        pi[69] = bytes32(nonce_);
     }
 
     // ── Registration ─────────────────────────────────────────────────────────
 
     function test_register() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         SpectreRegistry.AgentRecord memory r = registry.getRecord(owner);
         assertEq(r.owner, owner);
@@ -52,23 +89,23 @@ contract SpectreRegistryTest is Test {
 
     function test_register_revert_already_registered() public {
         vm.startPrank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         vm.expectRevert(SpectreRegistry.AlreadyRegistered.selector);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         vm.stopPrank();
     }
 
     function test_register_revert_timelock_too_short() public {
         vm.prank(owner);
         vm.expectRevert(SpectreRegistry.TimelockTooShort.selector);
-        registry.register(emailHash, 5);
+        registry.registerWithCustomTimelock(emailHash, 5);
     }
 
     // ── EmailWorldID recovery ────────────────────────────────────────────────
 
     function test_initiate_recovery() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
 
@@ -79,7 +116,7 @@ contract SpectreRegistryTest is Test {
 
     function test_cancel_recovery() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
 
@@ -92,7 +129,7 @@ contract SpectreRegistryTest is Test {
 
     function test_execute_recovery_after_timelock() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
 
@@ -106,7 +143,7 @@ contract SpectreRegistryTest is Test {
 
     function test_execute_revert_timelock_not_elapsed() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
 
@@ -116,14 +153,14 @@ contract SpectreRegistryTest is Test {
 
     function test_revert_nullifier_reuse() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
         vm.roll(block.number + 7201);
         registry.executeRecovery(owner);
 
         vm.prank(newOwner);
-        registry.register(keccak256("new@example.com"), 7200);
+        registry.register(keccak256("new@example.com"));
 
         vm.expectRevert(SpectreRegistry.NullifierAlreadyUsed.selector);
         registry.initiateRecovery(newOwner, owner, proof, inputs, 1, 999, wIdProof);
@@ -131,7 +168,7 @@ contract SpectreRegistryTest is Test {
 
     function test_non_owner_cannot_cancel() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
 
@@ -145,7 +182,7 @@ contract SpectreRegistryTest is Test {
     function test_set_backup_wallet() public {
         address backup = address(0xB);
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         vm.prank(owner);
         registry.setBackupWallet(backup);
@@ -157,7 +194,7 @@ contract SpectreRegistryTest is Test {
     function test_backup_recovery_full_flow() public {
         address backup = address(0xB);
         vm.startPrank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         registry.setBackupWallet(backup);
         vm.stopPrank();
 
@@ -178,7 +215,7 @@ contract SpectreRegistryTest is Test {
     function test_backup_recovery_revert_not_backup_wallet() public {
         address backup = address(0xB);
         vm.startPrank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         registry.setBackupWallet(backup);
         vm.stopPrank();
 
@@ -189,7 +226,7 @@ contract SpectreRegistryTest is Test {
 
     function test_backup_recovery_revert_no_backup_set() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         vm.expectRevert(SpectreRegistry.BackupWalletNotSet.selector);
         registry.initiateBackupRecovery(owner, newOwner);
@@ -198,7 +235,7 @@ contract SpectreRegistryTest is Test {
     function test_owner_can_cancel_backup_recovery() public {
         address backup = address(0xB);
         vm.startPrank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         registry.setBackupWallet(backup);
         vm.stopPrank();
 
@@ -220,7 +257,7 @@ contract SpectreRegistryTest is Test {
 
     function _registerWithGuardians(uint8 threshold) internal {
         vm.startPrank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         address[] memory gs = new address[](3);
         gs[0] = guardian1; gs[1] = guardian2; gs[2] = guardian3;
         registry.setGuardians(gs, threshold);
@@ -238,7 +275,7 @@ contract SpectreRegistryTest is Test {
 
     function test_set_guardians_revert_invalid_threshold() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         address[] memory gs = new address[](2);
         gs[0] = guardian1; gs[1] = guardian2;
 
@@ -249,7 +286,7 @@ contract SpectreRegistryTest is Test {
 
     function test_set_guardians_revert_too_many() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         address[] memory gs = new address[](11); // > MAX_GUARDIANS
         for (uint256 i = 0; i < 11; i++) gs[i] = address(uint160(0xD000 + i));
 
@@ -361,7 +398,7 @@ contract SpectreRegistryTest is Test {
 
     function test_initiate_revert_zero_new_owner() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
         registry.initiateRecovery(owner, address(0), proof, inputs, 1, 999, wIdProof);
@@ -374,7 +411,7 @@ contract SpectreRegistryTest is Test {
 
     function test_initiate_revert_recovery_already_pending() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
 
@@ -384,7 +421,7 @@ contract SpectreRegistryTest is Test {
 
     function test_execute_revert_no_recovery_pending() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         vm.expectRevert(SpectreRegistry.NoRecoveryPending.selector);
         registry.executeRecovery(owner);
@@ -392,7 +429,7 @@ contract SpectreRegistryTest is Test {
 
     function test_double_execute_reverts() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
         vm.roll(block.number + 7201);
@@ -405,7 +442,7 @@ contract SpectreRegistryTest is Test {
 
     function test_cancel_revert_no_recovery_pending() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         vm.prank(owner);
         vm.expectRevert(SpectreRegistry.NoRecoveryPending.selector);
@@ -415,13 +452,13 @@ contract SpectreRegistryTest is Test {
     function test_register_revert_zero_email_hash() public {
         vm.prank(owner);
         vm.expectRevert(SpectreRegistry.InvalidEmailHash.selector);
-        registry.register(bytes32(0), 7200);
+        registry.register(bytes32(0));
     }
 
     function test_backup_revert_zero_new_owner() public {
         address backup = address(0xB);
         vm.startPrank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         registry.setBackupWallet(backup);
         vm.stopPrank();
 
@@ -440,7 +477,7 @@ contract SpectreRegistryTest is Test {
 
     function test_nonce_increments_on_execute() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
         assertEq(registry.getRecord(owner).nonce, 1);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
@@ -451,7 +488,7 @@ contract SpectreRegistryTest is Test {
 
     function test_nonce_increments_on_cancel() public {
         vm.prank(owner);
-        registry.register(emailHash, 7200);
+        registry.register(emailHash);
 
         registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
 
@@ -462,11 +499,132 @@ contract SpectreRegistryTest is Test {
 
     function test_constructor_revert_zero_verifier() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(0), address(mockWorldId), 1, 1);
+        new SpectreRegistry(address(0), address(mockWorldId), address(mockDkim), 1, 1, DEFAULT_TL);
     }
 
     function test_constructor_revert_zero_worldid() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(0), 1, 1);
+        new SpectreRegistry(address(mockVerifier), address(0), address(mockDkim), 1, 1, DEFAULT_TL);
+    }
+
+    function test_constructor_revert_zero_dkim_registry() public {
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        new SpectreRegistry(address(mockVerifier), address(mockWorldId), address(0), 1, 1, DEFAULT_TL);
+    }
+
+    function test_constructor_revert_zero_default_timelock() public {
+        vm.expectRevert(SpectreRegistry.TimelockTooShort.selector);
+        new SpectreRegistry(address(mockVerifier), address(mockWorldId), address(mockDkim), 1, 1, 0);
+    }
+
+    // ── A4: default timelock ─────────────────────────────────────────────────
+
+    function test_register_default_uses_default_timelock() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        SpectreRegistry.AgentRecord memory r = registry.getRecord(owner);
+        assertEq(r.timelockBlocks, DEFAULT_TL);
+    }
+
+    function test_registerWithCustomTimelock_at_default_succeeds() public {
+        vm.prank(owner);
+        registry.registerWithCustomTimelock(emailHash, DEFAULT_TL);
+        assertEq(registry.getRecord(owner).timelockBlocks, DEFAULT_TL);
+    }
+
+    function test_registerWithCustomTimelock_above_default_succeeds() public {
+        vm.prank(owner);
+        registry.registerWithCustomTimelock(emailHash, DEFAULT_TL + 1);
+        assertEq(registry.getRecord(owner).timelockBlocks, DEFAULT_TL + 1);
+    }
+
+    function test_registerWithCustomTimelock_below_default_reverts() public {
+        vm.prank(owner);
+        vm.expectRevert(SpectreRegistry.TimelockTooShort.selector);
+        registry.registerWithCustomTimelock(emailHash, DEFAULT_TL - 1);
+    }
+
+    // ── A1: emailPublicInputs binding ────────────────────────────────────────
+
+    function test_initiate_revert_wrong_email_hash() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        bytes32[] memory bad = _buildInputs(keccak256("attacker@evil.com"), newOwner, 1);
+        vm.expectRevert(SpectreRegistry.InvalidProof.selector);
+        registry.initiateRecovery(owner, newOwner, proof, bad, 1, 999, wIdProof);
+    }
+
+    function test_initiate_revert_wrong_new_owner_in_inputs() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        // inputs claim new owner is 0xDEAD but the call passes newOwner
+        bytes32[] memory bad = _buildInputs(emailHash, address(0xDEAD), 1);
+        vm.expectRevert(SpectreRegistry.InvalidProof.selector);
+        registry.initiateRecovery(owner, newOwner, proof, bad, 1, 999, wIdProof);
+    }
+
+    function test_initiate_revert_wrong_nonce_in_inputs() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        // record.nonce starts at 1; proof claims nonce 99
+        bytes32[] memory bad = _buildInputs(emailHash, newOwner, 99);
+        vm.expectRevert(SpectreRegistry.InvalidProof.selector);
+        registry.initiateRecovery(owner, newOwner, proof, bad, 1, 999, wIdProof);
+    }
+
+    function test_initiate_revert_wrong_input_length() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        bytes32[] memory tooShort = new bytes32[](69);
+        vm.expectRevert(SpectreRegistry.InvalidProof.selector);
+        registry.initiateRecovery(owner, newOwner, proof, tooShort, 1, 999, wIdProof);
+    }
+
+    function test_initiate_after_cancel_uses_new_nonce_binding() public {
+        // After cancel, nonce -> 2. Old inputs (nonce=1) must no longer work.
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        vm.prank(owner);
+        registry.cancelRecovery(owner);
+        assertEq(registry.getRecord(owner).nonce, 2);
+
+        // stale inputs (nonce=1) should now fail the binding check
+        vm.expectRevert(SpectreRegistry.InvalidProof.selector);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 1000, wIdProof);
+
+        // fresh inputs (nonce=2) succeed
+        bytes32[] memory fresh = _buildInputs(emailHash, newOwner, 2);
+        registry.initiateRecovery(owner, newOwner, proof, fresh, 1, 1000, wIdProof);
+        (bool pending,,,) = registry.recoveryStatus(owner);
+        assertTrue(pending);
+    }
+
+    // ── A2: DKIM key gate ────────────────────────────────────────────────────
+
+    function test_initiate_revert_when_dkim_key_unknown() public {
+        // Deploy a registry that rejects every key, point a fresh SpectreRegistry at it.
+        DenyAllDKIMRegistry deny = new DenyAllDKIMRegistry();
+        SpectreRegistry strict = new SpectreRegistry(
+            address(mockVerifier),
+            address(mockWorldId),
+            address(deny),
+            1,
+            1,
+            DEFAULT_TL
+        );
+
+        vm.prank(owner);
+        strict.register(emailHash);
+
+        bytes32[] memory pi = _buildInputs(emailHash, newOwner, 1);
+        vm.expectRevert(SpectreRegistry.InvalidProof.selector);
+        strict.initiateRecovery(owner, newOwner, proof, pi, 1, 999, wIdProof);
     }
 }

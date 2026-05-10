@@ -10,6 +10,10 @@ interface IUltraVerifier {
     ) external view returns (bool);
 }
 
+interface IDKIMRegistry {
+    function isKnown(bytes32 keyHash) external view returns (bool);
+}
+
 /// @title SpectreRegistry
 /// @notice ZK key recovery protocol for AI agents.
 ///         Supports three recovery modes:
@@ -25,7 +29,7 @@ contract SpectreRegistry {
         Backup
     }
 
-    // ── Errors ───────────────────────────────────────────────────────────────
+    // Errors
 
     error AlreadyRegistered();
     error NotRegistered();
@@ -85,9 +89,18 @@ contract SpectreRegistry {
         RecoveryMode pendingRecoveryMode;
     }
 
-    // 10 blocks for testnet; set to 7200 (~24h on Base) before mainnet deployment
-    uint64 public constant MIN_TIMELOCK_BLOCKS = 10;
     uint8 public constant MAX_GUARDIANS = 10;
+
+    // Public-input layout produced by circuits/src/main.nr (70 fields total):
+    //   [0..17]  pubkey.modulus limbs (18 fields)
+    //   [18..35] pubkey.redc limbs    (18 fields)
+    //   [36..67] email_hash bytes     (32 fields, low byte of each)
+    //   [68]     new_public_key       (Field — encoded address)
+    //   [69]     nonce                (Field)
+    uint256 internal constant PUB_INPUTS_LENGTH = 70;
+    uint256 internal constant EMAIL_HASH_OFFSET = 36;
+    uint256 internal constant NEW_KEY_OFFSET = 68;
+    uint256 internal constant NONCE_OFFSET = 69;
 
     // owner → record
     mapping(address => AgentRecord) public records;
@@ -106,29 +119,52 @@ contract SpectreRegistry {
     // External contracts
     IUltraVerifier public immutable verifier;
     IWorldID public immutable worldId;
+    IDKIMRegistry public immutable dkimRegistry;
     uint256 public immutable worldIdGroupId;
     uint256 public immutable externalNullifier;
+
+    // Default timelock — set per deployment, immutable.
+    // Acts as both the protocol default AND the minimum any user can pick.
+    uint64 public immutable defaultTimelockBlocks;
 
     constructor(
         address _verifier,
         address _worldId,
+        address _dkimRegistry,
         uint256 _worldIdGroupId,
-        uint256 _externalNullifier
+        uint256 _externalNullifier,
+        uint64 _defaultTimelockBlocks
     ) {
-        if (_verifier == address(0) || _worldId == address(0))
-            revert ZeroAddress();
+        if (
+            _verifier == address(0) ||
+            _worldId == address(0) ||
+            _dkimRegistry == address(0)
+        ) revert ZeroAddress();
+        if (_defaultTimelockBlocks == 0) revert TimelockTooShort();
         verifier = IUltraVerifier(_verifier);
         worldId = IWorldID(_worldId);
+        dkimRegistry = IDKIMRegistry(_dkimRegistry);
         worldIdGroupId = _worldIdGroupId;
         externalNullifier = _externalNullifier;
+        defaultTimelockBlocks = _defaultTimelockBlocks;
     }
 
-    /// @notice Register an agent recovery config for msg.sender.
+    /// @notice Register an agent recovery config using the protocol's default timelock.
+    /// @param emailHash SHA256 of the owner's recovery email address.
+    function register(bytes32 emailHash) external {
+        _register(emailHash, defaultTimelockBlocks);
+    }
+
+    /// @notice Register an agent with a longer-than-default timelock.
     /// @param emailHash      SHA256 of the owner's recovery email address.
-    /// @param timelockBlocks Cancel window in blocks (min MIN_TIMELOCK_BLOCKS).
-    function register(bytes32 emailHash, uint64 timelockBlocks) external {
+    /// @param timelockBlocks Cancel window in blocks; must be ≥ defaultTimelockBlocks.
+    function registerWithCustomTimelock(bytes32 emailHash, uint64 timelockBlocks) external {
+        if (timelockBlocks < defaultTimelockBlocks) revert TimelockTooShort();
+        _register(emailHash, timelockBlocks);
+    }
+
+    function _register(bytes32 emailHash, uint64 timelockBlocks) internal {
         if (records[msg.sender].owner != address(0)) revert AlreadyRegistered();
-        if (timelockBlocks < MIN_TIMELOCK_BLOCKS) revert TimelockTooShort();
         if (emailHash == bytes32(0)) revert InvalidEmailHash();
 
         records[msg.sender] = AgentRecord({
@@ -147,8 +183,7 @@ contract SpectreRegistry {
         emit AgentRegistered(msg.sender, emailHash);
     }
 
-    // ── Mode 1: EmailWorldID recovery ────────────────────────────────────────
-
+    // Mode 1: EmailWorldID recovery
     /// @notice Initiate recovery using DKIM email proof + World ID Semaphore proof.
     function initiateRecovery(
         address agentOwner,
@@ -164,6 +199,19 @@ contract SpectreRegistry {
         if (record.pendingOwner != address(0)) revert RecoveryPending();
         if (newOwner == address(0)) revert ZeroAddress();
         if (usedNullifiers[worldIdNullifier]) revert NullifierAlreadyUsed();
+
+        // Bind the email proof's public inputs to this recovery before checking the proof.
+        // The circuit guarantees the inputs reflect a real DKIM-signed email; here we
+        // assert those inputs target the correct agent, new owner, and nonce.
+        if (emailPublicInputs.length != PUB_INPUTS_LENGTH) revert InvalidProof();
+        if (_extractEmailHash(emailPublicInputs) != record.emailHash) revert InvalidProof();
+        if (uint256(emailPublicInputs[NEW_KEY_OFFSET]) != uint256(uint160(newOwner))) revert InvalidProof();
+        if (uint256(emailPublicInputs[NONCE_OFFSET]) != record.nonce) revert InvalidProof();
+
+        // Pin the DKIM key to a known-good entry in the registry. Without this,
+        // an attacker could sign with their own RSA key and pass the proof check.
+        if (!dkimRegistry.isKnown(_hashDkimKey(emailPublicInputs)))
+            revert InvalidProof();
 
         if (!verifier.verify(emailProof, emailPublicInputs))
             revert InvalidProof();
@@ -194,7 +242,7 @@ contract SpectreRegistry {
         );
     }
 
-    // ── Mode 2: Backup wallet recovery ───────────────────────────────────────
+    //  Mode 2: Backup wallet recovery
 
     /// @notice Set or update the backup wallet for msg.sender's agent.
     function setBackupWallet(address backupWallet) external {
@@ -228,7 +276,7 @@ contract SpectreRegistry {
         );
     }
 
-    // ── Mode 3: Social / guardian recovery ───────────────────────────────────
+    // Mode 3: Social / guardian recovery
 
     /// @notice Set or replace the guardian list for msg.sender's agent.
     /// @param newGuardians List of guardian addresses (max MAX_GUARDIANS).
@@ -385,5 +433,32 @@ contract SpectreRegistry {
             abi.encodePacked(agentOwner, newOwner, record.nonce)
         );
         return approvalCounts[key];
+    }
+
+    /// @dev Reconstruct the SHA-256 email hash from the 32 byte-per-field public-input slots.
+    function _extractEmailHash(
+        bytes32[] calldata pubInputs
+    ) internal pure returns (bytes32) {
+        bytes32 result;
+        for (uint256 i = 0; i < 32; i++) {
+            uint256 b = uint256(pubInputs[EMAIL_HASH_OFFSET + i]) & 0xff;
+            result |= bytes32(b << ((31 - i) * 8));
+        }
+        return result;
+    }
+
+    /// @dev Hash the 18 RSA-modulus limbs at the start of the public-inputs blob.
+    ///      This is the key Spectre uses to look up trust in DKIMRegistry.
+    ///      Off-chain key publishers MUST hash limbs the same way.
+    function _hashDkimKey(
+        bytes32[] calldata pubInputs
+    ) internal pure returns (bytes32 result) {
+        assembly {
+            // pubInputs[0..17] starts at calldata offset pubInputs.offset.
+            // 18 slots × 32 bytes = 0x240 bytes.
+            let ptr := mload(0x40)
+            calldatacopy(ptr, pubInputs.offset, 0x240)
+            result := keccak256(ptr, 0x240)
+        }
     }
 }
