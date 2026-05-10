@@ -2,8 +2,8 @@ import {
   createPublicClient,
   createWalletClient,
   http,
-  encodePacked,
-  keccak256,
+  sha256,
+  stringToBytes,
   type Hash,
   type TransactionReceipt,
 } from "viem";
@@ -41,14 +41,25 @@ export class RegistryClient {
     });
   }
 
-  async register(
+  async register(emailHash: `0x${string}`): Promise<Hash> {
+    return this.walletClient.writeContract({
+      address: this.registryAddress,
+      abi: REGISTRY_ABI,
+      functionName: "register",
+      args: [emailHash],
+      account: this.walletClient.account!,
+      chain: this.walletClient.chain,
+    });
+  }
+
+  async registerWithCustomTimelock(
     emailHash: `0x${string}`,
     timelockBlocks: bigint
   ): Promise<Hash> {
     return this.walletClient.writeContract({
       address: this.registryAddress,
       abi: REGISTRY_ABI,
-      functionName: "register",
+      functionName: "registerWithCustomTimelock",
       args: [emailHash, timelockBlocks],
       account: this.walletClient.account!,
       chain: this.walletClient.chain,
@@ -219,8 +230,11 @@ export class RegistryClient {
     return this.publicClient.waitForTransactionReceipt({ hash })
   }
 
+  /// SHA-256 of the lowercased, trimmed email address.
+  /// Must match what the circuit commits as `email_hash` and what
+  /// SpectreRegistry stores in `record.emailHash`.
   computeEmailHash(email: string): `0x${string}` {
-    return keccak256(encodePacked(["string"], [email.toLowerCase().trim()]));
+    return sha256(stringToBytes(email.toLowerCase().trim()));
   }
 }
 

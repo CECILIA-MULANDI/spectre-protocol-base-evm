@@ -35,9 +35,19 @@ export class SpectreClient {
 
   // Registration
 
-  async register(email: string, timelockBlocks: bigint) {
+  /// Register an agent using the protocol's default timelock.
+  async register(email: string) {
     const emailHash = this.registry.computeEmailHash(email);
-    const hash = await this.registry.register(emailHash, timelockBlocks);
+    const hash = await this.registry.register(emailHash);
+    const receipt = await this.registry.waitForTx(hash);
+    return { hash, receipt, emailHash };
+  }
+
+  /// Register an agent with a longer-than-default timelock.
+  /// Reverts if `timelockBlocks` is below the protocol's default.
+  async registerWithCustomTimelock(email: string, timelockBlocks: bigint) {
+    const emailHash = this.registry.computeEmailHash(email);
+    const hash = await this.registry.registerWithCustomTimelock(emailHash, timelockBlocks);
     const receipt = await this.registry.waitForTx(hash);
     return { hash, receipt, emailHash };
   }

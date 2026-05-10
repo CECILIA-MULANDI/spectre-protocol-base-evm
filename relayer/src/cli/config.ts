@@ -10,6 +10,7 @@ export type Config = {
   registryAddress: `0x${string}`;
   verifierAddress: `0x${string}`;
   worldIdRouter: `0x${string}`;
+  dkimRegistryAddress?: `0x${string}`;
   ownerPrivateKey: `0x${string}`;
   // populated after register
   agentOwnerAddress?: `0x${string}`;

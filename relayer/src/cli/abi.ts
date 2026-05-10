@@ -3,6 +3,13 @@ export const REGISTRY_ABI = [
   {
     type: "function",
     name: "register",
+    inputs: [{ name: "emailHash", type: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "registerWithCustomTimelock",
     inputs: [
       { name: "emailHash", type: "bytes32" },
       { name: "timelockBlocks", type: "uint64" },
