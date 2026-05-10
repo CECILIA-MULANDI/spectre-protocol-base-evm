@@ -26,6 +26,11 @@ import { parseEmail } from "./email/parser.js";
 import { fetchDKIMPublicKey } from "./email/dkim.js";
 import { buildWitness } from "./prover/witness.js";
 import { generateProof, verifyProof } from "./prover/prover.js";
+import { registerNotifyRoutes } from "./notify/api.js";
+import { startWatcher } from "./notify/watcher.js";
+import { startDispatcher } from "./notify/dispatcher.js";
+import { openDb, DEFAULT_DB_PATH } from "./notify/db.js";
+import { setDb as setSubsDb } from "./notify/subscriptions.js";
 
 const WORLD_ID_RP_ID     = process.env.WORLD_ID_RP_ID ?? "";
 const WORLD_ID_SIGNING_KEY = process.env.WORLD_ID_SIGNING_KEY ?? "";
@@ -126,5 +131,62 @@ app.post("/worldid-context", (_req, res) => {
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
+// Open the SQLite connection used by the subscription store and (optionally)
+// the watcher + dispatcher. setDb() makes it the singleton seen by api.ts.
+const dbPath = process.env.SPECTRE_DB_PATH ?? DEFAULT_DB_PATH;
+const db = openDb(dbPath);
+setSubsDb(db);
+console.log(`[server] notify DB opened at ${dbPath}`);
+
+// Notification API: POST /subscribe, DELETE /subscribe/:agentOwner, GET /subscribe/:agentOwner
+registerNotifyRoutes(app);
+
 const PORT = process.env.PORT ?? 3001;
-app.listen(PORT, () => console.log(`Spectre prover API listening on :${PORT}`));
+const httpServer = app.listen(PORT, () =>
+  console.log(`Spectre prover API listening on :${PORT}`)
+);
+
+// Optionally start the watcher + dispatcher in the same process. Skipped
+// unless both SPECTRE_RPC and SPECTRE_REGISTRY are set, so a prover-only
+// deployment remains valid (run them in their own process via npm run watcher).
+const watcherRpc = process.env.SPECTRE_RPC;
+const watcherRegistry = process.env.SPECTRE_REGISTRY;
+const ac = new AbortController();
+let watcherDone: Promise<void> = Promise.resolve();
+let dispatcherDone: Promise<void> = Promise.resolve();
+if (watcherRpc && watcherRegistry) {
+  watcherDone = startWatcher({
+    rpcUrl: watcherRpc,
+    registryAddress: watcherRegistry as `0x${string}`,
+    db,
+    signal: ac.signal,
+  }).catch((err) => console.error("[watcher] fatal:", err));
+  dispatcherDone = startDispatcher({ db, signal: ac.signal }).catch((err) =>
+    console.error("[dispatcher] fatal:", err)
+  );
+} else {
+  console.log(
+    "[watcher] disabled — set SPECTRE_RPC and SPECTRE_REGISTRY to enable."
+  );
+}
+
+// Graceful shutdown: stop accepting new HTTP requests, finish in-flight ones,
+// abort the watcher + dispatcher loops, wait for both to drain, close the DB.
+// Second signal force-exits.
+let signalled = false;
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.on(sig, async () => {
+    if (signalled) {
+      console.error(`[server] received ${sig} again; force-exiting`);
+      process.exit(1);
+    }
+    signalled = true;
+    console.log(`[server] received ${sig}; shutting down`);
+    ac.abort();
+    httpServer.close(() => console.log("[server] HTTP closed"));
+    await Promise.all([watcherDone, dispatcherDone]);
+    db.close();
+    console.log("[server] DB closed; goodbye");
+    process.exit(0);
+  });
+}

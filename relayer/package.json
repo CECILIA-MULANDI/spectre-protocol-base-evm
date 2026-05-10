@@ -13,15 +13,20 @@
     "approve-guardian": "tsx src/cli/approve-guardian-recovery.ts",
     "check": "tsx src/cli/check-state.ts",
     "recover-link": "tsx src/cli/recover-link.ts",
-    "server": "tsx src/server.ts"
+    "subscribe": "tsx src/cli/subscribe.ts",
+    "watcher": "tsx src/notify/run-watcher.ts",
+    "server": "tsx src/server.ts",
+    "test": "tsx --test src/notify/*.test.ts"
   },
   "dependencies": {
     "@noble/curves": "1.9.7",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/mailparser": "^3.4.6",
     "@types/multer": "^2.1.0",
     "@worldcoin/idkit-server": "^1.1.1",
+    "better-sqlite3": "^11.10.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "mailparser": "^3.9.4",
