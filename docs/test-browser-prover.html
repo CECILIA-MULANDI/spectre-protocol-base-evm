@@ -98,14 +98,7 @@
     a { color: var(--accent); }
   </style>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "@noir-lang/noir_js": "https://esm.sh/@noir-lang/noir_js@1.0.0-beta.20",
-      "@noir-lang/backend_barretenberg": "https://esm.sh/@noir-lang/backend_barretenberg@0.36.0"
-    }
-  }
-  </script>
+  <script type="module" src="./demo/bundle.js"></script>
 </head>
 <body>
   <div class="container">
@@ -140,7 +133,7 @@
   </div>
 
   <script type="module">
-    import { BrowserProver } from "./sdk/provers/browser.js";
+    const { BrowserProver } = window.SpectreDemo;
 
     const $ = (id) => document.getElementById(id);
     const log = $("log");

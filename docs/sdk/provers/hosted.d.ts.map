@@ -1,1 +1,0 @@
-{"version":3,"file":"hosted.d.ts","sourceRoot":"","sources":["../../src/provers/hosted.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,aAAa,EAAE,WAAW,EAAE,MAAM,YAAY,CAAC;AAC7D,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,aAAa,CAAC;AAE/C,qBAAa,YAAa,YAAW,aAAa;IACpC,OAAO,CAAC,QAAQ,CAAC,GAAG;gBAAH,GAAG,EAAE,MAAM;IAElC,KAAK,CAAC,MAAM,EAAE,WAAW,GAAG,OAAO,CAAC,WAAW,CAAC;CAsBvD"}

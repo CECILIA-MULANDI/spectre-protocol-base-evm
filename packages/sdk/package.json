@@ -21,7 +21,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
-    "sync:docs": "npm run build && rm -rf ../../docs/sdk && mkdir -p ../../docs/sdk && cp -r dist/. ../../docs/sdk/"
+    "build:demo": "node scripts/build-demo.mjs"
   },
   "keywords": [
     "zk",
@@ -43,6 +43,7 @@
     "@noir-lang/backend_barretenberg": "^0.36.0",
     "@noir-lang/noir_js": "^1.0.0-beta.20",
     "@types/node": "^25.6.0",
+    "esbuild": "^0.28.0",
     "typescript": "^5.4.0"
   },
   "peerDependencies": {
