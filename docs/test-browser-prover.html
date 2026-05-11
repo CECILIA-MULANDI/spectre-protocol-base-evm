@@ -107,8 +107,15 @@
 
     <div class="note">
       This page is a development sanity-check for the <span class="mono">@spectre-protocol/sdk</span> browser prover.
-      Drop in a DKIM-signed <span class="mono">.eml</span> file with a recovery body of the form
-      <span class="mono">&lt;newOwner&gt;:&lt;nonce&gt;\r\n</span> and click Generate.
+      Send yourself an email from your registered address with subject
+      <span class="mono">spectre:&lt;newOwner-as-bigint&gt;:&lt;nonce&gt;</span>.
+      The body can be anything - we only check the subject. Download the message as
+      <span class="mono">.eml</span> and drop it below.
+    </div>
+
+    <div class="field">
+      <label for="expectedSubject">Expected subject substring (auto-computed)</label>
+      <input type="text" id="expectedSubject" readonly value="(fill in new owner + nonce)" />
     </div>
 
     <div class="field">
@@ -121,7 +128,7 @@
     </div>
     <div class="field">
       <label for="nonce">Nonce</label>
-      <input type="text" id="nonce" value="0" />
+      <input type="text" id="nonce" value="1" />
     </div>
     <div class="field">
       <label for="circuitUrl">Circuit URL</label>
@@ -145,6 +152,21 @@
       log.scrollTop = log.scrollHeight;
     }
     function reset() { log.textContent = ""; }
+
+    function updateExpectedSubject() {
+      const owner = $("newOwner").value.trim();
+      const nonce = $("nonce").value.trim();
+      try {
+        const bn = BigInt(owner);
+        const n = BigInt(nonce);
+        $("expectedSubject").value = `spectre:${bn}:${n}`;
+      } catch {
+        $("expectedSubject").value = "(invalid new owner or nonce)";
+      }
+    }
+    $("newOwner").addEventListener("input", updateExpectedSubject);
+    $("nonce").addEventListener("input", updateExpectedSubject);
+    updateExpectedSubject();
 
     $("go").addEventListener("click", async () => {
       reset();

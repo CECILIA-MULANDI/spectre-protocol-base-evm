@@ -138,14 +138,15 @@ The server runs on port 3001 and provides:
 
 ### Email + World ID recovery
 
-**Step 1** - Compose a recovery email from the registered address:
+**Step 1** - Send a recovery email from the registered address:
 
 ```
 To: (any address)
-Body: {recovery_key}:{nonce}
+Subject: spectre:{recovery_key}:{nonce}
+Body: (anything)
 ```
 
-The nonce comes from `SpectreRegistry.getRecord(agentOwner).nonce`. Download the sent email as `.eml`.
+`recovery_key` is the new owner address as a decimal bigint. `nonce` comes from `SpectreRegistry.getRecord(agentOwner).nonce`. The body can be anything your mail client produces (signatures, multipart MIME, etc.) - only the subject is checked. Download the sent email as `.eml`.
 
 **Step 2** - Generate a World ID proof using the `world-id-ui` frontend. Fill in the agent owner address, new owner address, and nonce. Save the output as `worldid-proof.json`.
 
@@ -208,10 +209,11 @@ This increments the nonce, invalidating any stale guardian votes or proofs.
 
 The Noir circuit (`circuits/src/main.nr`) verifies:
 
-1. **RSA-2048 DKIM signature** - proves the email was signed by the sender's mail server
+1. **RSA-2048 DKIM signature** - proves the email was signed by the sender's mail server (which transitively commits to the body via the `bh=` tag, so the body is integrity-protected without us reading it)
 2. **FROM address hash** - matches the on-chain registered email hash (without revealing the email)
-3. **Body content** - email body contains `{recovery_key}:{nonce}`, binding the proof to a specific recovery attempt
-4. **Body hash** - DKIM `bh=` header matches SHA256 of the canonical body
+3. **Subject binding** - the subject contains `spectre:{recovery_key}:{nonce}`, binding the proof to a specific (newOwner, nonce) pair
+
+The body is intentionally not inspected. This lets users send recovery emails from any mainstream mail client (which all wrap plain-text input in multipart MIME) without worrying about strict body formats.
 
 Build and test the circuit:
 
