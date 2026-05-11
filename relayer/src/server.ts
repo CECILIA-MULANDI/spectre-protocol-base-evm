@@ -63,14 +63,15 @@ app.post("/prove", upload.single("eml"), async (req, res) => {
 
     const parsed = await parseEmail(req.file.buffer);
 
-    // Verify the body contains the correct recovery params
-    const expectedBody = `${newPublicKeyBig}:${nonceBig}\r\n`;
-    const actualBody = parsed.canonicalBody.toString("utf8");
-    if (actualBody !== expectedBody) {
+    // Verify the subject contains the expected `spectre:<newPublicKey>:<nonce>` binding.
+    const expectedBinding = `spectre:${newPublicKeyBig}:${nonceBig}`;
+    const subjectValue = parsed.dkim.canonicalHeader
+      .subarray(parsed.subjectValueStart, parsed.subjectValueEnd)
+      .toString("utf8");
+    if (!subjectValue.includes(expectedBinding)) {
       res.status(400).json({
-        error: "Email body must be exactly: {newPublicKey}:{nonce}\\r\\n",
-        expected: JSON.stringify(expectedBody),
-        got: JSON.stringify(actualBody),
+        error: `Email subject must contain "${expectedBinding}"`,
+        subject: subjectValue,
       });
       return;
     }

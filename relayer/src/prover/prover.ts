@@ -26,7 +26,9 @@ function witnessToToml(w: CircuitWitness): string {
     `new_public_key = "${w.new_public_key}"`,
     `nonce = "${w.nonce}"`,
     `signature = ${arr(w.signature)}`,
-    `body_hash_index = "${w.body_hash_index}"`,
+    `subject_value_start = "${w.subject_value_start}"`,
+    `subject_value_end = "${w.subject_value_end}"`,
+    `binding_offset = "${w.binding_offset}"`,
     ``,
     `[pubkey]`,
     `modulus = ${arr(w.pubkey.modulus)}`,
@@ -36,10 +38,6 @@ function witnessToToml(w: CircuitWitness): string {
     `storage = ${arr(w.header.storage)}`,
     `len = "${w.header.len}"`,
     ``,
-    `[body]`,
-    `storage = ${arr(w.body.storage)}`,
-    `len = "${w.body.len}"`,
-    ``,
     `[from_header_sequence]`,
     `index = "${w.from_header_sequence.index}"`,
     `length = "${w.from_header_sequence.length}"`,
@@ -47,10 +45,6 @@ function witnessToToml(w: CircuitWitness): string {
     `[from_address_sequence]`,
     `index = "${w.from_address_sequence.index}"`,
     `length = "${w.from_address_sequence.length}"`,
-    ``,
-    `[dkim_header_sequence]`,
-    `index = "${w.dkim_header_sequence.index}"`,
-    `length = "${w.dkim_header_sequence.length}"`,
   ].join("\n");
 }
 

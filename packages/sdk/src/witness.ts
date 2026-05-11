@@ -6,7 +6,6 @@ const NUM_LIMBS = 18;
 const LIMB_MASK = (1n << LIMB_BITS) - 1n;
 
 const MAX_HEADER_LEN = 2048;
-const MAX_BODY_LEN = 128;
 
 export type CircuitWitness = {
   pubkey: { modulus: string[]; redc: string[] };
@@ -17,9 +16,9 @@ export type CircuitWitness = {
   signature: string[];
   from_header_sequence: { index: string; length: string };
   from_address_sequence: { index: string; length: string };
-  body: { storage: string[]; len: string };
-  dkim_header_sequence: { index: string; length: string };
-  body_hash_index: string;
+  subject_value_start: string;
+  subject_value_end: string;
+  binding_offset: string;
 };
 
 export async function buildWitness(
@@ -44,13 +43,6 @@ export async function buildWitness(
     );
   }
   const paddedHeader = padBytes(parsed.dkim.canonicalHeader, MAX_HEADER_LEN);
-
-  if (parsed.canonicalBody.length > MAX_BODY_LEN) {
-    throw new Error(
-      `Body too long: ${parsed.canonicalBody.length} > ${MAX_BODY_LEN} - body must be "${newPublicKey}:${nonce}\\r\\n"`
-    );
-  }
-  const paddedBody = padBytes(parsed.canonicalBody, MAX_BODY_LEN);
 
   const sigHex = Array.from(parsed.dkim.signatureBytes)
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -79,15 +71,9 @@ export async function buildWitness(
       index: String(parsed.fromAddressSequence.index),
       length: String(parsed.fromAddressSequence.length),
     },
-    body: {
-      storage: paddedBody.map(String),
-      len: String(parsed.canonicalBody.length),
-    },
-    dkim_header_sequence: {
-      index: String(parsed.dkim.dkimHeaderSequence.index),
-      length: String(parsed.dkim.dkimHeaderSequence.length),
-    },
-    body_hash_index: String(parsed.dkim.bodyHashIndex),
+    subject_value_start: String(parsed.subjectValueStart),
+    subject_value_end: String(parsed.subjectValueEnd),
+    binding_offset: String(parsed.bindingOffset),
   };
 }
 

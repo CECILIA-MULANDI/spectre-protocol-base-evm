@@ -4,6 +4,7 @@ export type Sequence = {
   // how many bytes long
   length: number;
 };
+
 export type DKIMFields = {
   //e.g rsa-sha256
   algorithm: string;
@@ -15,10 +16,6 @@ export type DKIMFields = {
   canonicalHeader: Buffer;
   // RSA-sig bytes
   signatureBytes: Buffer;
-  // position of dkim-signature field in canonicalHeader
-  dkimHeaderSequence: Sequence;
-  // byte offset of the base64 bh= value within canonicalHeader
-  bodyHashIndex: number;
 };
 
 export type ParsedEmail = {
@@ -26,6 +23,10 @@ export type ParsedEmail = {
   dkim: DKIMFields;
   fromHeaderSequence: Sequence;
   fromAddressSequence: Sequence;
-  // DKIM relaxed-canonicalized body bytes
-  canonicalBody: Buffer;
+  // Byte offset (within canonicalHeader) of the first byte after `subject:`
+  subjectValueStart: number;
+  // Byte offset (within canonicalHeader) of the CRLF that ends the subject value
+  subjectValueEnd: number;
+  // Byte offset (within canonicalHeader) of the `spectre:` marker in the subject value
+  bindingOffset: number;
 };

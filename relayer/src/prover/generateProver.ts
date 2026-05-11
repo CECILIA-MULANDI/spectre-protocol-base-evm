@@ -17,9 +17,14 @@ async function main() {
   console.log("Header length:", parsed.dkim.canonicalHeader.length);
   console.log("from_header_sequence:", parsed.fromHeaderSequence);
   console.log("from_address_sequence:", parsed.fromAddressSequence);
-  console.log("dkim_header_sequence:", parsed.dkim.dkimHeaderSequence);
-  console.log("body_hash_index:", parsed.dkim.bodyHashIndex);
-  console.log("canonical body:", JSON.stringify(parsed.canonicalBody.toString("utf8")));
+  console.log("subject_value_start:", parsed.subjectValueStart);
+  console.log("subject_value_end:", parsed.subjectValueEnd);
+  console.log("binding_offset:", parsed.bindingOffset);
+  const subjectBytes = parsed.dkim.canonicalHeader.subarray(
+    parsed.subjectValueStart,
+    parsed.subjectValueEnd
+  );
+  console.log("subject value:", JSON.stringify(subjectBytes.toString("utf8")));
 
   const pubkey = await fetchDKIMPublicKey(
     parsed.dkim.selector,
@@ -27,10 +32,8 @@ async function main() {
   );
   console.log("Fetched RSA pubkey from DNS ✓");
 
-
   const witness = buildWitness(parsed, pubkey, 1n, 1n);
 
-  // Format as TOML for Prover.toml
   const toml = formatProverToml(witness);
   await writeFile("../circuits/Prover.toml", toml);
   console.log("Prover.toml written ✓");
@@ -40,36 +43,30 @@ function formatProverToml(w: ReturnType<typeof buildWitness>): string {
   const arr = (vals: string[]) => `[${vals.map((v) => `"${v}"`).join(", ")}]`;
 
   return `
-  email_hash = ${arr(w.email_hash)}
-  new_public_key = "${w.new_public_key}"
-  nonce = "${w.nonce}"
-  signature = ${arr(w.signature)}
-  body_hash_index = "${w.body_hash_index}"
+email_hash = ${arr(w.email_hash)}
+new_public_key = "${w.new_public_key}"
+nonce = "${w.nonce}"
+signature = ${arr(w.signature)}
+subject_value_start = "${w.subject_value_start}"
+subject_value_end = "${w.subject_value_end}"
+binding_offset = "${w.binding_offset}"
 
-  [pubkey]
-  modulus = ${arr(w.pubkey.modulus)}
-  redc = ${arr(w.pubkey.redc)}
+[pubkey]
+modulus = ${arr(w.pubkey.modulus)}
+redc = ${arr(w.pubkey.redc)}
 
-  [header]
-  storage = ${arr(w.header.storage)}
-  len = "${w.header.len}"
+[header]
+storage = ${arr(w.header.storage)}
+len = "${w.header.len}"
 
-  [body]
-  storage = ${arr(w.body.storage)}
-  len = "${w.body.len}"
+[from_header_sequence]
+index = "${w.from_header_sequence.index}"
+length = "${w.from_header_sequence.length}"
 
-  [from_header_sequence]
-  index = "${w.from_header_sequence.index}"
-  length = "${w.from_header_sequence.length}"
-
-  [from_address_sequence]
-  index = "${w.from_address_sequence.index}"
-  length = "${w.from_address_sequence.length}"
-
-  [dkim_header_sequence]
-  index = "${w.dkim_header_sequence.index}"
-  length = "${w.dkim_header_sequence.length}"
-  `.trim();
+[from_address_sequence]
+index = "${w.from_address_sequence.index}"
+length = "${w.from_address_sequence.length}"
+`.trim();
 }
 
 main().catch(console.error);

@@ -1,26 +1,39 @@
-import { decodeUtf8, encodeUtf8, indexOfBytes, lastIndexOfBytes } from "./bytes.js";
+import { decodeUtf8, encodeUtf8, indexOfBytes } from "./bytes.js";
 import type { DKIMFields, ParsedEmail, Sequence } from "./types.js";
+
+const BINDING_PREFIX = "spectre:";
 
 export async function parseEmail(rawEml: Uint8Array): Promise<ParsedEmail> {
   const emailStr = decodeUtf8(rawEml);
   const fromAddress = extractFromAddress(emailStr);
   const dkim = extractDKIMFields(emailStr);
-  const fromHeaderSequence = findFromHeaderSequence(dkim.canonicalHeader);
+  const fromHeaderSequence = findHeaderFieldSequence(dkim.canonicalHeader, "from");
   const fromAddressSequence = findFromAddressSequence(
     dkim.canonicalHeader,
     fromHeaderSequence,
     fromAddress
   );
-  const canonicalBody = extractCanonicalBody(emailStr);
-  return { fromAddress, dkim, fromHeaderSequence, fromAddressSequence, canonicalBody };
+  const { subjectValueStart, subjectValueEnd } = findSubjectValueRange(dkim.canonicalHeader);
+  const bindingOffset = findBindingOffset(
+    dkim.canonicalHeader,
+    subjectValueStart,
+    subjectValueEnd
+  );
+  return {
+    fromAddress,
+    dkim,
+    fromHeaderSequence,
+    fromAddressSequence,
+    subjectValueStart,
+    subjectValueEnd,
+    bindingOffset,
+  };
 }
 
 function extractFromAddress(emailStr: string): string {
-  // RFC 5322 From: header. Stop at end-of-line that isn't followed by whitespace (folding).
   const match = emailStr.match(/^From:[ \t]*([\s\S]*?)(?=\r?\n[^ \t])/im);
   if (!match?.[1]) throw new Error("No From header found in email");
   const headerValue = match[1].replace(/\r?\n[ \t]+/g, " ").trim();
-  // Address can be either "Name <addr@host>" or just "addr@host"
   const bracketMatch = headerValue.match(/<([^>]+)>/);
   const candidate = (bracketMatch?.[1] ?? headerValue).trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) {
@@ -75,56 +88,35 @@ function extractDKIMFields(emailStr: string): DKIMFields {
 
   const canonicalHeader = encodeUtf8(lines.join("\r\n"));
 
-  const dkimFieldStart = lastIndexOfBytes(canonicalHeader, encodeUtf8("dkim-signature:"));
-  if (dkimFieldStart === -1)
-    throw new Error("dkim-signature field not found in canonical header");
-  const dkimHeaderSequence: Sequence = {
-    index: dkimFieldStart,
-    length: canonicalHeader.length - dkimFieldStart,
-  };
-
-  const dkimFieldStr = decodeUtf8(canonicalHeader.subarray(dkimFieldStart));
-  const bhTagMatch = dkimFieldStr.match(/[;:][ \t]*bh=([A-Za-z0-9+/=]+)/);
-  if (!bhTagMatch) throw new Error("bh= tag not found in dkim-signature field");
-  const bhValueStart = dkimFieldStr.indexOf(bhTagMatch[1]!);
-  const bodyHashIndex = dkimFieldStart + bhValueStart;
-
   return {
     algorithm,
     domain,
     selector,
     canonicalHeader,
     signatureBytes,
-    dkimHeaderSequence,
-    bodyHashIndex,
   };
 }
 
-function extractCanonicalBody(emailStr: string): Uint8Array {
-  const separatorMatch = emailStr.match(/\r?\n\r?\n/);
-  if (!separatorMatch || separatorMatch.index === undefined)
-    throw new Error("No header/body separator found in email");
-  const rawBody = emailStr.slice(separatorMatch.index + separatorMatch[0].length);
-
-  const lines = rawBody.split(/\r?\n/);
-  const canonicalized = lines.map((line) =>
-    line.replace(/[ \t]+$/, "").replace(/[ \t]+/g, " ")
-  );
-  while (canonicalized.length > 0 && canonicalized[canonicalized.length - 1] === "") {
-    canonicalized.pop();
+function findHeaderFieldSequence(canonicalHeader: Uint8Array, fieldName: string): Sequence {
+  const needle = encodeUtf8(`${fieldName}:`);
+  // Look for the field anchored at start-of-line: either at offset 0 or preceded by CRLF.
+  let pos = 0;
+  while (pos <= canonicalHeader.length - needle.length) {
+    const idx = indexOfBytes(canonicalHeader, needle, pos);
+    if (idx === -1) break;
+    const atLineStart =
+      idx === 0 ||
+      (idx >= 2 &&
+        canonicalHeader[idx - 2] === 0x0d &&
+        canonicalHeader[idx - 1] === 0x0a);
+    if (atLineStart) {
+      const crlf = indexOfBytes(canonicalHeader, encodeUtf8("\r\n"), idx);
+      const end = crlf === -1 ? canonicalHeader.length : crlf;
+      return { index: idx, length: end - idx };
+    }
+    pos = idx + 1;
   }
-  canonicalized.push("");
-  return encodeUtf8(canonicalized.join("\r\n"));
-}
-
-function findFromHeaderSequence(canonicalHeader: Uint8Array): Sequence {
-  const needle = encodeUtf8("from:");
-  const idx = indexOfBytes(canonicalHeader, needle);
-  if (idx === -1)
-    throw new Error("Could not find 'from:' header in canonicalized header");
-  const crlf = indexOfBytes(canonicalHeader, encodeUtf8("\r\n"), idx);
-  const end = crlf === -1 ? canonicalHeader.length : crlf;
-  return { index: idx, length: end - idx };
+  throw new Error(`Could not find '${fieldName}:' header at start of a canonical header line`);
 }
 
 function findFromAddressSequence(
@@ -138,12 +130,41 @@ function findFromAddressSequence(
   );
   const needle = encodeUtf8(fromAddress);
   const relativeIndex = indexOfBytes(fromLine, needle);
-  if (relativeIndex === -1)
+  if (relativeIndex === -1) {
     throw new Error(`Could not find "${fromAddress}" within the from: header`);
+  }
   return {
     index: fromHeaderSeq.index + relativeIndex,
     length: needle.length,
   };
+}
+
+function findSubjectValueRange(canonicalHeader: Uint8Array): {
+  subjectValueStart: number;
+  subjectValueEnd: number;
+} {
+  const subjectSeq = findHeaderFieldSequence(canonicalHeader, "subject");
+  // Skip past "subject:" (8 bytes) to reach the value.
+  return {
+    subjectValueStart: subjectSeq.index + "subject:".length,
+    subjectValueEnd: subjectSeq.index + subjectSeq.length,
+  };
+}
+
+function findBindingOffset(
+  canonicalHeader: Uint8Array,
+  subjectValueStart: number,
+  subjectValueEnd: number
+): number {
+  const subjectValue = canonicalHeader.subarray(subjectValueStart, subjectValueEnd);
+  const needle = encodeUtf8(BINDING_PREFIX);
+  const relative = indexOfBytes(subjectValue, needle);
+  if (relative === -1) {
+    throw new Error(
+      `Subject must contain '${BINDING_PREFIX}<newOwner>:<nonce>' - none found`
+    );
+  }
+  return subjectValueStart + relative;
 }
 
 function escapeRegex(s: string): string {

@@ -1,19 +1,34 @@
 import { simpleParser } from "mailparser";
 import type { DKIMFields, ParsedEmail, Sequence } from "./types.js";
 
-/** Parses a .eml file and extracts DKIM fields for the circuit. */
+const BINDING_PREFIX = "spectre:";
+
+/** Parses a .eml file and extracts the DKIM fields needed by the circuit. */
 export async function parseEmail(rawEml: Buffer): Promise<ParsedEmail> {
   const parsed = await simpleParser(rawEml);
   const fromAddress = extractFromAddress(parsed);
   const dkim = extractDKIMFields(rawEml);
-  const fromHeaderSequence = findFromHeaderSequence(dkim.canonicalHeader);
+  const fromHeaderSequence = findHeaderFieldSequence(dkim.canonicalHeader, "from");
   const fromAddressSequence = findFromAddressSequence(
     dkim.canonicalHeader,
     fromHeaderSequence,
     fromAddress
   );
-  const canonicalBody = extractCanonicalBody(rawEml);
-  return { fromAddress, dkim, fromHeaderSequence, fromAddressSequence, canonicalBody };
+  const { subjectValueStart, subjectValueEnd } = findSubjectValueRange(dkim.canonicalHeader);
+  const bindingOffset = findBindingOffset(
+    dkim.canonicalHeader,
+    subjectValueStart,
+    subjectValueEnd
+  );
+  return {
+    fromAddress,
+    dkim,
+    fromHeaderSequence,
+    fromAddressSequence,
+    subjectValueStart,
+    subjectValueEnd,
+    bindingOffset,
+  };
 }
 
 function extractFromAddress(
@@ -69,71 +84,36 @@ function extractDKIMFields(rawEml: Buffer): DKIMFields {
 
   const canonicalHeader = Buffer.from(lines.join("\r\n"), "utf8");
 
-  // Find dkim-signature field position in canonicalHeader
-  const dkimFieldStart = canonicalHeader.lastIndexOf(
-    Buffer.from("dkim-signature:", "utf8")
-  );
-  if (dkimFieldStart === -1) throw new Error("dkim-signature field not found in canonical header");
-  const dkimHeaderSequence: Sequence = {
-    index: dkimFieldStart,
-    length: canonicalHeader.length - dkimFieldStart,
-  };
-
-  // Find the base64 body hash value — locate "; bh=" or ":bh=" then skip past "bh="
-  const dkimFieldStr = canonicalHeader.toString("utf8", dkimFieldStart);
-  const bhTagMatch = dkimFieldStr.match(/[;:][ \t]*bh=([A-Za-z0-9+/=]+)/);
-  if (!bhTagMatch) throw new Error("bh= tag not found in dkim-signature field");
-  const bhValueStart = dkimFieldStr.indexOf(bhTagMatch[1]!);
-  const bodyHashIndex = dkimFieldStart + bhValueStart;
-
   return {
     algorithm,
     domain,
     selector,
     canonicalHeader,
     signatureBytes,
-    dkimHeaderSequence,
-    bodyHashIndex,
   };
 }
 
-/**
- * Extracts and DKIM relaxed-canonicalizes the plain-text body.
- * RFC 6376 §3.4.4 relaxed body: strip trailing whitespace per line,
- * normalize line endings to CRLF, strip excess trailing blank lines,
- * ensure exactly one trailing CRLF.
- */
-function extractCanonicalBody(rawEml: Buffer): Buffer {
-  const emailStr = rawEml.toString("utf-8");
-  // Split on the blank line separating headers from body
-  const separatorMatch = emailStr.match(/\r?\n\r?\n/);
-  if (!separatorMatch || separatorMatch.index === undefined)
-    throw new Error("No header/body separator found in email");
-  const rawBody = emailStr.slice(separatorMatch.index + separatorMatch[0].length);
-
-  const lines = rawBody.split(/\r?\n/);
-  const canonicalized = lines.map((line) =>
-    line.replace(/[ \t]+$/, "").replace(/[ \t]+/g, " ")
-  );
-  // Strip trailing empty lines
-  while (canonicalized.length > 0 && canonicalized[canonicalized.length - 1] === "") {
-    canonicalized.pop();
-  }
-  // Add single trailing CRLF (RFC 6376 §3.4.4 minimum body)
-  canonicalized.push("");
-  return Buffer.from(canonicalized.join("\r\n"), "utf8");
-}
-
-function findFromHeaderSequence(canonicalHeader: Buffer): Sequence {
-  const needle = Buffer.from("from:", "utf-8");
-  for (let i = 0; i <= canonicalHeader.length - needle.length; i++) {
-    if (canonicalHeader.subarray(i, i + needle.length).equals(needle)) {
-      let end = canonicalHeader.indexOf("\r\n", i);
+function findHeaderFieldSequence(canonicalHeader: Buffer, fieldName: string): Sequence {
+  const needle = Buffer.from(`${fieldName}:`, "utf-8");
+  let pos = 0;
+  while (pos <= canonicalHeader.length - needle.length) {
+    const idx = canonicalHeader.indexOf(needle, pos);
+    if (idx === -1) break;
+    const atLineStart =
+      idx === 0 ||
+      (idx >= 2 &&
+        canonicalHeader[idx - 2] === 0x0d &&
+        canonicalHeader[idx - 1] === 0x0a);
+    if (atLineStart) {
+      let end = canonicalHeader.indexOf("\r\n", idx);
       if (end === -1) end = canonicalHeader.length;
-      return { index: i, length: end - i };
+      return { index: idx, length: end - idx };
     }
+    pos = idx + 1;
   }
-  throw new Error("Could not find 'from:' header in canonicalized header");
+  throw new Error(
+    `Could not find '${fieldName}:' header at start of a canonical header line`
+  );
 }
 
 function findFromAddressSequence(
@@ -154,4 +134,31 @@ function findFromAddressSequence(
     index: fromHeaderSeq.index + relativeIndex,
     length: needle.length,
   };
+}
+
+function findSubjectValueRange(canonicalHeader: Buffer): {
+  subjectValueStart: number;
+  subjectValueEnd: number;
+} {
+  const subjectSeq = findHeaderFieldSequence(canonicalHeader, "subject");
+  return {
+    subjectValueStart: subjectSeq.index + "subject:".length,
+    subjectValueEnd: subjectSeq.index + subjectSeq.length,
+  };
+}
+
+function findBindingOffset(
+  canonicalHeader: Buffer,
+  subjectValueStart: number,
+  subjectValueEnd: number
+): number {
+  const subjectValue = canonicalHeader.subarray(subjectValueStart, subjectValueEnd);
+  const needle = Buffer.from(BINDING_PREFIX, "utf-8");
+  const relative = subjectValue.indexOf(needle);
+  if (relative === -1) {
+    throw new Error(
+      `Subject must contain '${BINDING_PREFIX}<newOwner>:<nonce>' - none found`
+    );
+  }
+  return subjectValueStart + relative;
 }

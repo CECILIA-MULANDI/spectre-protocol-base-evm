@@ -9,8 +9,6 @@ export type DKIMFields = {
   selector: string;
   canonicalHeader: Uint8Array;
   signatureBytes: Uint8Array;
-  dkimHeaderSequence: Sequence;
-  bodyHashIndex: number;
 };
 
 export type ParsedEmail = {
@@ -18,7 +16,12 @@ export type ParsedEmail = {
   dkim: DKIMFields;
   fromHeaderSequence: Sequence;
   fromAddressSequence: Sequence;
-  canonicalBody: Uint8Array;
+  /** Byte offset within `canonicalHeader` of the first byte of the subject value (right after `subject:`). */
+  subjectValueStart: number;
+  /** Byte offset within `canonicalHeader` of the CRLF that ends the subject value (or header length if subject is last). */
+  subjectValueEnd: number;
+  /** Byte offset within `canonicalHeader` of the `spectre:` marker inside the subject value. */
+  bindingOffset: number;
 };
 
 export type RSAPublicKey = {
