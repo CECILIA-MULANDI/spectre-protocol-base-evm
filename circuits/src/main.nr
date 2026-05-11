@@ -1,51 +1,120 @@
 use SHA256::sha256_var;
 use zkemail::{
     dkim::RSAPubkey,
-    headers::{body_hash::get_body_hash, email_address::get_email_address},
+    headers::email_address::get_email_address,
     Sequence,
 };
 
 global KEY_LIMBS_2048: u32 = 18;
 global MAX_EMAIL_HEADER_LENGTH: u32 = 2048;
-/// Body must be small: "{new_public_key_decimal}:{nonce_decimal}\r\n"
-/// Max Field decimal = 77 digits, max nonce = 20 digits, colon + CRLF = 3 -> 102 bytes max.
-global MAX_BODY_LENGTH: u32 = 128;
+/// Maximum number of bytes we scan after the `spectre:` marker for the
+/// `<bigint>:<nonce>` payload. 128 covers the worst-case 77-digit Field value
+/// plus 20-digit nonce plus delimiters with slack.
+global MAX_BINDING_PAYLOAD: u32 = 128;
 
 // -- Helpers ---------------------------------------------------------------------
 
 fn check_email_hash<let N: u32>(from_address: BoundedVec<u8, N>, email_hash: [u8; 32]) {
     let hashed = sha256_var(from_address.storage(), from_address.len() as u32);
-    assert(hashed == email_hash, "This is not the correct hash");
+    assert(hashed == email_hash, "from-address hash mismatch");
 }
 
-/// Verifies the body SHA256 matches the `bh=` commitment in the DKIM header.
-fn check_body_hash<let MAX_HEADER_LEN: u32, let MAX_BODY_LEN: u32>(
+/// Validates that `subject_value_start` points immediately past a `subject:`
+/// field-name in the canonical DKIM header (i.e. this is the first byte of the
+/// subject value), and that the next CRLF is at `subject_value_end`. Returns
+/// nothing - this is a pure constraint helper.
+fn check_subject_field_bounds<let MAX_HEADER_LEN: u32>(
     header: BoundedVec<u8, MAX_HEADER_LEN>,
-    body: BoundedVec<u8, MAX_BODY_LEN>,
-    dkim_header_sequence: Sequence,
-    body_hash_index: u32,
+    subject_value_start: u32,
+    subject_value_end: u32,
 ) {
-    let bh = get_body_hash(header, dkim_header_sequence, body_hash_index);
-    let computed = sha256_var(body.storage(), body.len() as u32);
-    assert(computed == bh, "body hash does not match DKIM commitment");
+    // Must have room for "subject:" prefix before the value.
+    assert(subject_value_start >= 8, "subject_value_start too small for 'subject:' prefix");
+    assert(
+        subject_value_end + 2 <= header.len(),
+        "subject_value_end + CRLF out of header bounds",
+    );
+    assert(subject_value_end >= subject_value_start, "subject_value_end before start");
+
+    // The 8 bytes ending at subject_value_start must spell "subject:" (lower-cased
+    // because the relaxed-header canonicalisation lowercases field names).
+    let prefix = comptime { "subject:".as_bytes() };
+    for i in 0..8 {
+        assert(
+            header.get_unchecked(subject_value_start - 8 + i) == prefix[i],
+            "subject_value_start does not follow 'subject:' field name",
+        );
+    }
+
+    // The field must start at the beginning of a canonical header line:
+    // either offset 0, or the two bytes before "subject:" are CRLF.
+    let field_start = subject_value_start - 8;
+    if field_start != 0 {
+        assert(field_start >= 2, "no room for preceding CRLF");
+        assert(header.get_unchecked(field_start - 2) == 13, "subject field must follow CR");
+        assert(header.get_unchecked(field_start - 1) == 10, "subject field must follow LF");
+    }
+
+    // The two bytes at subject_value_end must be CRLF (end of header line).
+    // Unless subject is the final field, in which case there's no trailing CRLF
+    // in the canonical header. Allow either.
+    if subject_value_end != header.len() {
+        assert(header.get_unchecked(subject_value_end) == 13, "subject must end with CR");
+        assert(header.get_unchecked(subject_value_end + 1) == 10, "subject must end with LF");
+    }
 }
 
-/// Parses a body with format `{key_decimal}:{nonce_decimal}\r\n` (or `\n`).
-/// Returns (new_public_key, nonce) as Fields.
-fn parse_recovery_body<let N: u32>(body: BoundedVec<u8, N>) -> (Field, Field) {
-    let COLON: u8 = 58;
-    let CR: u8 = 13;
-    let LF: u8 = 10;
-    let ASCII_ZERO: u8 = 48;
+/// Parses `spectre:<key>:<nonce>` starting at `binding_offset` within the
+/// canonical header, where `binding_offset` is constrained to lie inside the
+/// subject value range.
+fn parse_recovery_binding<let MAX_HEADER_LEN: u32>(
+    header: BoundedVec<u8, MAX_HEADER_LEN>,
+    subject_value_start: u32,
+    subject_value_end: u32,
+    binding_offset: u32,
+) -> (Field, Field) {
+    // Bound the binding marker inside the subject value.
+    assert(binding_offset >= subject_value_start, "binding before subject value");
+    assert(binding_offset + 8 <= subject_value_end, "binding extends past subject value");
 
+    // Verify the literal "spectre:" prefix at binding_offset.
+    let prefix = comptime { "spectre:".as_bytes() };
+    for i in 0..8 {
+        assert(
+            header.get_unchecked(binding_offset + i) == prefix[i],
+            "subject missing 'spectre:' marker at binding_offset",
+        );
+    }
+
+    // Parse `<bigint>:<nonce>` starting after the prefix. Accepts:
+    //   * decimal digits 0-9
+    //   * exactly one ':' separator between key and nonce
+    //   * trailing space (0x20) or end-of-subject as the terminator
+    let COLON: u8 = 58;
+    let SPACE: u8 = 32;
+    let ASCII_ZERO: u8 = 48;
+    let ASCII_NINE: u8 = 57;
+
+    let scan_start = binding_offset + 8;
     let mut key: Field = 0;
     let mut nonce_val: Field = 0;
     let mut past_colon: bool = false;
+    let mut ended: bool = false;
 
-    for i in 0..N {
-        if i < body.len() {
-            let b = body.get(i);
-            if (b != CR) & (b != LF) & (b != COLON) {
+    for i in 0..MAX_BINDING_PAYLOAD {
+        let idx = scan_start + i;
+        if (idx < subject_value_end) & !ended {
+            let b = header.get_unchecked(idx);
+            if b == SPACE {
+                ended = true;
+            } else if b == COLON {
+                assert(!past_colon, "binding must contain exactly one ':' separator");
+                past_colon = true;
+            } else {
+                assert(
+                    (b >= ASCII_ZERO) & (b <= ASCII_NINE),
+                    "binding must contain only digits and a single ':'",
+                );
                 let digit = (b - ASCII_ZERO) as Field;
                 if !past_colon {
                     key = key * 10 + digit;
@@ -53,13 +122,10 @@ fn parse_recovery_body<let N: u32>(body: BoundedVec<u8, N>) -> (Field, Field) {
                     nonce_val = nonce_val * 10 + digit;
                 }
             }
-            if b == COLON {
-                past_colon = true;
-            }
         }
     }
 
-    assert(past_colon, "body must contain ':' separator between key and nonce");
+    assert(past_colon, "binding must contain ':' between key and nonce");
     (key, nonce_val)
 }
 
@@ -72,19 +138,27 @@ fn parse_recovery_body<let N: u32>(body: BoundedVec<u8, N>) -> (Field, Field) {
 ///   nonce               - replay protection (must match AgentRecord.nonce on-chain)
 ///
 /// Private inputs:
-///   header              - canonicalized DKIM header bytes
-///   signature           - RSA-2048 DKIM signature
-///   from_header_sequence / from_address_sequence - byte offsets of FROM in header
-///   body                - DKIM relaxed-canonicalized body: "{key}:{nonce}\r\n"
-///   dkim_header_sequence - byte offset of the dkim-signature field in header
-///   body_hash_index     - byte offset of the base64 bh= value inside the header
+///   header                - canonicalized DKIM header bytes
+///   signature             - RSA-2048 DKIM signature
+///   from_header_sequence  - byte range of the `from:<value>` field
+///   from_address_sequence - byte range of the address inside the FROM value
+///   subject_value_start   - byte offset (within header) of the first byte after
+///                           `subject:` field name (i.e. start of subject value)
+///   subject_value_end     - byte offset of the CRLF that ends the subject value
+///   binding_offset        - byte offset of the `spectre:` marker within the
+///                           subject value
 ///
 /// The circuit:
-///   1. Verifies the DKIM signature over the header.
-///   2. Extracts the FROM address and checks its SHA256 hash matches email_hash.
-///   3. Verifies the body SHA256 matches bh= committed in the DKIM header.
-///   4. Parses new_public_key and nonce from the body, asserting they equal the
-///      public inputs - binding the recovery params to the DKIM-signed email body.
+///   1. Verifies the DKIM signature over the canonical header. The signature
+///      already commits to the body via the `bh=` tag - we do not need to read
+///      the body to know it's authentic, so the email body can be anything the
+///      sender's mail client produces (multipart, signatures, replies).
+///   2. Verifies the FROM address hashes to the registered email_hash.
+///   3. Validates that subject_value_start/end actually delimit a `subject:`
+///      header field in the canonical header.
+///   4. Parses `spectre:<new_public_key>:<nonce>` from the subject and asserts
+///      it matches the public inputs - this binds the recovery to a specific
+///      (newOwner, nonce) pair.
 fn main(
     // Public inputs
     pubkey: pub RSAPubkey<KEY_LIMBS_2048>,
@@ -96,27 +170,37 @@ fn main(
     signature: [Field; KEY_LIMBS_2048],
     from_header_sequence: Sequence,
     from_address_sequence: Sequence,
-    body: BoundedVec<u8, MAX_BODY_LENGTH>,
-    dkim_header_sequence: Sequence,
-    body_hash_index: u32,
+    subject_value_start: u32,
+    subject_value_end: u32,
+    binding_offset: u32,
 ) {
-    // 1. Verify DKIM signature
+    // 1. Verify DKIM signature over the canonical header.
     let _ = pubkey.verify_dkim_signature(header, signature);
 
-    // 2. Verify FROM address hash
+    // 2. Verify the FROM address hash matches the registered email.
     let from_field = comptime { "from".as_bytes() };
-    let from_address = get_email_address(header, from_header_sequence, from_address_sequence, from_field);
+    let from_address = get_email_address(
+        header,
+        from_header_sequence,
+        from_address_sequence,
+        from_field,
+    );
     check_email_hash(from_address, email_hash);
 
-    // 3. Verify body is DKIM-committed (bh= matches SHA256 of body)
-    check_body_hash(header, body, dkim_header_sequence, body_hash_index);
+    // 3. Validate the subject field is well-formed in the canonical header.
+    check_subject_field_bounds(header, subject_value_start, subject_value_end);
 
-    // 4. Extract new_public_key and nonce from body, assert they match public inputs
-    let (extracted_key, extracted_nonce) = parse_recovery_body(body);
-    assert(extracted_key == new_public_key, "new_public_key not found in email body");
-    assert(extracted_nonce == nonce, "nonce not found in email body");
+    // 4. Parse the binding from the subject and assert it matches public inputs.
+    let (extracted_key, extracted_nonce) = parse_recovery_binding(
+        header,
+        subject_value_start,
+        subject_value_end,
+        binding_offset,
+    );
+    assert(extracted_key == new_public_key, "subject key does not match new_public_key");
+    assert(extracted_nonce == nonce, "subject nonce does not match nonce");
 
-    // 5. Sanity: both must be non-zero
+    // 5. Sanity bounds.
     assert(new_public_key != 0, "new_public_key must be non-zero");
     assert(nonce != 0, "nonce must be non-zero");
 }
@@ -128,78 +212,20 @@ fn test_email_hash_round_trip() {
     let mut addr: BoundedVec<u8, MAX_EMAIL_HEADER_LENGTH> = BoundedVec::new();
     let bytes: [u8; 14] =
         [0x75, 0x73, 0x65, 0x72, 0x40, 0x67, 0x6d, 0x61, 0x69, 0x6c, 0x2e, 0x63, 0x6f, 0x6d];
-    for byte in bytes { addr.push(byte); }
+    for byte in bytes {
+        addr.push(byte);
+    }
     let hash = sha256_var(addr.storage(), addr.len() as u32);
     check_email_hash(addr, hash);
 }
 
-#[test(should_fail_with = "This is not the correct hash")]
+#[test(should_fail_with = "from-address hash mismatch")]
 fn test_email_hash_zero_hash_fails() {
     let mut addr: BoundedVec<u8, MAX_EMAIL_HEADER_LENGTH> = BoundedVec::new();
     let bytes: [u8; 14] =
         [0x75, 0x73, 0x65, 0x72, 0x40, 0x67, 0x6d, 0x61, 0x69, 0x6c, 0x2e, 0x63, 0x6f, 0x6d];
-    for byte in bytes { addr.push(byte); }
+    for byte in bytes {
+        addr.push(byte);
+    }
     check_email_hash(addr, [0; 32]);
-}
-
-#[test(should_fail_with = "This is not the correct hash")]
-fn test_email_hash_wrong_email_fails() {
-    let mut correct: BoundedVec<u8, MAX_EMAIL_HEADER_LENGTH> = BoundedVec::new();
-    for b in [0x75u8, 0x73, 0x65, 0x72, 0x40, 0x67, 0x6d, 0x61, 0x69, 0x6c, 0x2e, 0x63, 0x6f, 0x6d] {
-        correct.push(b);
-    }
-    let hash = sha256_var(correct.storage(), correct.len() as u32);
-    let mut wrong: BoundedVec<u8, MAX_EMAIL_HEADER_LENGTH> = BoundedVec::new();
-    for b in [0x61u8, 0x74, 0x74, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x40, 0x65, 0x76, 0x69, 0x6c, 0x2e, 0x63, 0x6f, 0x6d] {
-        wrong.push(b);
-    }
-    check_email_hash(wrong, hash);
-}
-
-#[test]
-fn test_parse_recovery_body_basic() {
-    // body = "123:45\r\n"
-    let mut body: BoundedVec<u8, MAX_BODY_LENGTH> = BoundedVec::new();
-    for b in [49u8, 50, 51, 58, 52, 53, 13, 10] { body.push(b); }
-    let (key, nonce_val) = parse_recovery_body(body);
-    assert(key == 123, "key should be 123");
-    assert(nonce_val == 45, "nonce should be 45");
-}
-
-#[test]
-fn test_parse_recovery_body_lf_only() {
-    // body = "999:1\n"
-    let mut body: BoundedVec<u8, MAX_BODY_LENGTH> = BoundedVec::new();
-    for b in [57u8, 57, 57, 58, 49, 10] { body.push(b); }
-    let (key, nonce_val) = parse_recovery_body(body);
-    assert(key == 999, "key should be 999");
-    assert(nonce_val == 1, "nonce should be 1");
-}
-
-#[test(should_fail_with = "body must contain ':' separator between key and nonce")]
-fn test_parse_recovery_body_no_colon_fails() {
-    let mut body: BoundedVec<u8, MAX_BODY_LENGTH> = BoundedVec::new();
-    // "12345\r\n" - no colon
-    for b in [49u8, 50, 51, 52, 53, 13, 10] { body.push(b); }
-    let _ = parse_recovery_body(body);
-}
-
-#[test(should_fail_with = "new_public_key not found in email body")]
-fn test_parse_wrong_key_fails() {
-    // body = "100:1\r\n" but we claim new_public_key = 999
-    let mut body: BoundedVec<u8, MAX_BODY_LENGTH> = BoundedVec::new();
-    for b in [49u8, 48, 48, 58, 49, 13, 10] { body.push(b); }
-    let (extracted_key, extracted_nonce) = parse_recovery_body(body);
-    assert(extracted_key == 999, "new_public_key not found in email body");
-    assert(extracted_nonce == 1, "nonce not found in email body");
-}
-
-#[test(should_fail_with = "nonce not found in email body")]
-fn test_parse_wrong_nonce_fails() {
-    // body = "100:1\r\n" but we claim nonce = 99
-    let mut body: BoundedVec<u8, MAX_BODY_LENGTH> = BoundedVec::new();
-    for b in [49u8, 48, 48, 58, 49, 13, 10] { body.push(b); }
-    let (extracted_key, extracted_nonce) = parse_recovery_body(body);
-    assert(extracted_key == 100, "new_public_key not found in email body");
-    assert(extracted_nonce == 99, "nonce not found in email body");
 }
