@@ -20,7 +20,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "sync:docs": "npm run build && rm -rf ../../docs/sdk && mkdir -p ../../docs/sdk && cp -r dist/. ../../docs/sdk/"
   },
   "keywords": [
     "zk",

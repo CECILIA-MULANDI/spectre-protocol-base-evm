@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectre · Browser Prover Test</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0A0E1A;
+      --bg2: #111827;
+      --bg3: #1C2B40;
+      --text: #E8ECF4;
+      --text2: #6B8299;
+      --accent: #00C9A7;
+      --border: rgba(255, 255, 255, 0.1);
+      --error: #FF7A6E;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 48px 24px;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .subtitle { color: var(--text2); margin-bottom: 32px; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .field { margin-bottom: 16px; }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text2);
+      margin-bottom: 6px;
+    }
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13px;
+    }
+    input[type="file"] { padding: 8px; font-family: inherit; }
+    button {
+      padding: 12px 24px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .log {
+      margin-top: 24px;
+      padding: 16px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+    .log .ok { color: var(--accent); }
+    .log .err { color: var(--error); }
+    .log .step { color: var(--text2); }
+    .note {
+      background: var(--bg2);
+      border-left: 2px solid var(--accent);
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: var(--text2);
+    }
+    a { color: var(--accent); }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "@noir-lang/noir_js": "https://esm.sh/@noir-lang/noir_js@1.0.0-beta.20",
+      "@noir-lang/backend_barretenberg": "https://esm.sh/@noir-lang/backend_barretenberg@0.36.0"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Browser Prover Test</h1>
+    <p class="subtitle">End-to-end ZK proof generation in your browser. Nothing leaves your device except the DKIM DNS lookup.</p>
+
+    <div class="note">
+      This page is a development sanity-check for the <span class="mono">@spectre-protocol/sdk</span> browser prover.
+      Drop in a DKIM-signed <span class="mono">.eml</span> file with a recovery body of the form
+      <span class="mono">&lt;newOwner&gt;:&lt;nonce&gt;\r\n</span> and click Generate.
+    </div>
+
+    <div class="field">
+      <label for="eml">Recovery email (.eml)</label>
+      <input type="file" id="eml" accept=".eml,message/rfc822" />
+    </div>
+    <div class="field">
+      <label for="newOwner">New owner address</label>
+      <input type="text" id="newOwner" placeholder="0x…" value="0x000000000000000000000000abcdef1234567890" />
+    </div>
+    <div class="field">
+      <label for="nonce">Nonce</label>
+      <input type="text" id="nonce" value="0" />
+    </div>
+    <div class="field">
+      <label for="circuitUrl">Circuit URL</label>
+      <input type="text" id="circuitUrl" value="/circuit/v1/spectre.json" />
+    </div>
+    <button id="go">Generate Proof</button>
+
+    <div class="log" id="log">Idle. Pick an .eml file and click Generate.</div>
+  </div>
+
+  <script type="module">
+    import { BrowserProver } from "./sdk/provers/browser.js";
+
+    const $ = (id) => document.getElementById(id);
+    const log = $("log");
+    function line(text, cls = "") {
+      const span = document.createElement("span");
+      if (cls) span.className = cls;
+      span.textContent = text + "\n";
+      log.appendChild(span);
+      log.scrollTop = log.scrollHeight;
+    }
+    function reset() { log.textContent = ""; }
+
+    $("go").addEventListener("click", async () => {
+      reset();
+      const file = $("eml").files[0];
+      if (!file) { line("Pick an .eml file first.", "err"); return; }
+      const newOwner = $("newOwner").value.trim();
+      const nonce = $("nonce").value.trim();
+      const circuitUrl = $("circuitUrl").value.trim();
+
+      $("go").disabled = true;
+      try {
+        line(`Reading ${file.name} (${file.size} bytes)...`, "step");
+        const eml = new Uint8Array(await file.arrayBuffer());
+
+        line("Initialising browser prover...", "step");
+        const prover = new BrowserProver(circuitUrl);
+
+        line("Generating proof (this can take 30s-2min)...", "step");
+        const t0 = performance.now();
+        const result = await prover.prove({
+          eml,
+          newOwner,
+          nonce: BigInt(nonce),
+        });
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+
+        line(`OK in ${elapsed}s`, "ok");
+        line(`from: ${result.fromAddress}`);
+        line(`proof (hex, ${result.proof.length / 2} bytes): ${result.proof.slice(0, 96)}...`);
+        line(`public inputs (${result.publicInputs.split(",").length}): ${result.publicInputs.slice(0, 200)}...`);
+      } catch (e) {
+        line(`ERROR: ${e?.message ?? e}`, "err");
+        if (e?.stack) line(e.stack, "err");
+      } finally {
+        $("go").disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
