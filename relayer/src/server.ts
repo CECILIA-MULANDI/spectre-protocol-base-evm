@@ -27,6 +27,7 @@ import { fetchDKIMPublicKey } from "./email/dkim.js";
 import { buildWitness } from "./prover/witness.js";
 import { generateProof, verifyProof } from "./prover/prover.js";
 import { registerNotifyRoutes } from "./notify/api.js";
+import { makeRateLimiter } from "./http/rateLimit.js";
 import { startWatcher } from "./notify/watcher.js";
 import { startDispatcher } from "./notify/dispatcher.js";
 import { openDb, DEFAULT_DB_PATH } from "./notify/db.js";
@@ -41,7 +42,17 @@ app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1_000_000 } });
 
-app.post("/prove", upload.single("eml"), async (req, res) => {
+// S8: these endpoints are unauthenticated and CPU-bound (proof gen / verify).
+// A per-IP token bucket stops trivial resource-exhaustion DoS. Stricter than
+// the notify API's bucket because each request here is far more expensive.
+// Production should still front this with a real WAF / edge limit.
+const proverLimit = makeRateLimiter({
+  capacity: 5,
+  refillPerSec: 0.2, // ~1 request / 5s sustained, burst of 5
+  message: "rate limit exceeded — prover is CPU-bound, retry shortly",
+});
+
+app.post("/prove", proverLimit, upload.single("eml"), async (req, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: "eml file is required" });
@@ -91,7 +102,7 @@ app.post("/prove", upload.single("eml"), async (req, res) => {
   }
 });
 
-app.post("/verify", async (req, res) => {
+app.post("/verify", proverLimit, async (req, res) => {
   try {
     const { proof, publicInputs, verificationKey } = req.body as {
       proof?: string;
@@ -115,7 +126,7 @@ app.post("/verify", async (req, res) => {
 });
 
 // Returns a signed rp_context for IDKit v4. Called by the world-id-ui before opening the widget.
-app.post("/worldid-context", (_req, res) => {
+app.post("/worldid-context", proverLimit, (_req, res) => {
   if (!WORLD_ID_RP_ID || !WORLD_ID_SIGNING_KEY) {
     res.status(500).json({ error: "WORLD_ID_RP_ID and WORLD_ID_SIGNING_KEY must be set" });
     return;

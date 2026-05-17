@@ -16,7 +16,7 @@
     "subscribe": "tsx src/cli/subscribe.ts",
     "watcher": "tsx src/notify/run-watcher.ts",
     "server": "tsx src/server.ts",
-    "test": "tsx --test src/notify/*.test.ts"
+    "test": "tsx --test src/notify/*.test.ts src/http/*.test.ts src/email/*.test.ts"
   },
   "dependencies": {
     "@noble/curves": "1.9.7",

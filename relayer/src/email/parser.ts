@@ -3,6 +3,16 @@ import type { DKIMFields, ParsedEmail, Sequence } from "./types.js";
 
 const BINDING_PREFIX = "spectre:";
 
+/**
+ * Escape regex metacharacters so an attacker-controlled string can be safely
+ * interpolated into a `new RegExp(...)`. Kept identical to the SDK's copy;
+ * the two parsers having diverged here was audit finding S8. Exported for
+ * direct unit testing.
+ */
+export function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** Parses a .eml file and extracts the DKIM fields needed by the circuit. */
 export async function parseEmail(rawEml: Buffer): Promise<ParsedEmail> {
   const parsed = await simpleParser(rawEml);
@@ -66,8 +76,12 @@ function extractDKIMFields(rawEml: Buffer): DKIMFields {
     const nameLower = name.toLowerCase();
     const useCount = consumed.get(nameLower) ?? 0;
     consumed.set(nameLower, useCount + 1);
+    // S8: `name` comes from the attacker-controlled DKIM `h=` tag. It MUST be
+    // regex-escaped before interpolation, or a crafted .eml can inject regex
+    // metacharacters into this pattern on the public /prove endpoint (ReDoS /
+    // parser confusion). This mirrors the SDK parser, which already escaped.
     const allMatches = [
-      ...emailStr.matchAll(new RegExp(`^${name}:[^\r\n]*`, "gim")),
+      ...emailStr.matchAll(new RegExp(`^${escapeRegex(name)}:[^\r\n]*`, "gim")),
     ];
     const targetIndex = allMatches.length - 1 - useCount;
     if (targetIndex < 0) continue;

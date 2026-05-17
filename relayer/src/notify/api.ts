@@ -9,9 +9,10 @@
  * Rate limiting: a per-IP token bucket guards the mutating endpoints so a
  * spammer can't hammer the DB with cheap signed-but-no-effect requests.
  */
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { verifyMessage, isAddress, type Address } from "viem";
 import * as subs from "./subscriptions.js";
+import { makeRateLimiter } from "../http/rateLimit.js";
 
 /**
  * Build the canonical message a user signs for a subscribe call. Including the
@@ -42,30 +43,8 @@ export function unsubscribeMessage(args: {
   ].join("\n");
 }
 
-// Simple per-IP token bucket. Production deployments should put a real
-// rate-limit / WAF in front; this is a baseline that prevents trivial abuse.
-const RATE_CAPACITY = 10;
-const RATE_REFILL_PER_SEC = 1; // 1 token/sec → 60/min sustained
-const buckets = new Map<string, { tokens: number; updatedAt: number }>();
-
-function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const key = req.ip ?? "unknown";
-  const now = Date.now();
-  let b = buckets.get(key);
-  if (!b) {
-    b = { tokens: RATE_CAPACITY, updatedAt: now };
-    buckets.set(key, b);
-  }
-  const elapsed = (now - b.updatedAt) / 1000;
-  b.tokens = Math.min(RATE_CAPACITY, b.tokens + elapsed * RATE_REFILL_PER_SEC);
-  b.updatedAt = now;
-  if (b.tokens < 1) {
-    res.status(429).json({ error: "rate limit exceeded" });
-    return;
-  }
-  b.tokens -= 1;
-  next();
-}
+// Per-IP token bucket guarding the mutating endpoints: 10 burst, 1/s sustained.
+const rateLimit = makeRateLimiter({ capacity: 10, refillPerSec: 1 });
 
 export function registerNotifyRoutes(app: Express): void {
   app.post("/subscribe", rateLimit, async (req, res) => {
