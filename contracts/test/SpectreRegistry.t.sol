@@ -18,6 +18,34 @@ contract MockWorldID {
     ) external pure {}
 }
 
+/// @dev World ID mock that enforces checks-effects-interactions (S5).
+///      IWorldID.verifyProof is `view`, so the registry STATICCALLs it — the
+///      probe can only read. It reverts if, at the moment the external World
+///      ID call runs, the nullifier is not already reserved and the recovery
+///      not already staged. A CEI regression (effects after the call) makes
+///      any initiateRecovery through this probe revert.
+contract OrderingProbeWorldID {
+    SpectreRegistry public reg;
+    address public agent;
+    uint256 public nullifier;
+
+    function arm(SpectreRegistry r, address a, uint256 n) external {
+        reg = r; agent = a; nullifier = n;
+    }
+
+    function verifyProof(
+        uint256, uint256, uint256, uint256, uint256, uint256[8] calldata
+    ) external view {
+        SpectreRegistry.AgentRecord memory rec = reg.getRecord(agent);
+        require(
+            reg.usedNullifiers(nullifier) &&
+                rec.pendingOwner != address(0) &&
+                rec.pendingWorldIdNullifier == nullifier,
+            "S5: effects must precede interactions"
+        );
+    }
+}
+
 /// @dev Permissive DKIM registry — every key is "known".
 ///      Use for tests that don't exercise the registry gate itself.
 contract MockDKIMRegistry {
@@ -626,5 +654,95 @@ contract SpectreRegistryTest is Test {
         bytes32[] memory pi = _buildInputs(emailHash, newOwner, 1);
         vm.expectRevert(SpectreRegistry.InvalidProof.selector);
         strict.initiateRecovery(owner, newOwner, proof, pi, 1, 999, wIdProof);
+    }
+
+    // ── S4: nullifier lifecycle (release on cancel) ──────────────────────────
+
+    function test_initiate_stages_nullifier() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+
+        assertTrue(registry.usedNullifiers(999));
+        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 999);
+    }
+
+    function test_cancel_releases_nullifier() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+
+        vm.prank(owner);
+        registry.cancelRecovery(owner);
+
+        // S4: the cancelled attempt must NOT permanently burn the nullifier.
+        assertFalse(registry.usedNullifiers(999));
+        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 0);
+
+        // Same World ID identity (same nullifier) can recover again — pre-fix
+        // this reverted NullifierAlreadyUsed and bricked the mode forever.
+        bytes32[] memory fresh = _buildInputs(emailHash, newOwner, 2);
+        registry.initiateRecovery(owner, newOwner, proof, fresh, 1, 999, wIdProof);
+        (bool pending,,,) = registry.recoveryStatus(owner);
+        assertTrue(pending);
+    }
+
+    function test_execute_keeps_nullifier_consumed() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        vm.roll(block.number + 7201);
+        registry.executeRecovery(owner);
+
+        // Finalized recovery: nullifier stays spent, staged pointer cleared.
+        assertTrue(registry.usedNullifiers(999));
+        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 0);
+    }
+
+    function test_backup_recovery_does_not_stage_nullifier() public {
+        address backup = address(0xB);
+        vm.startPrank(owner);
+        registry.register(emailHash);
+        registry.setBackupWallet(backup);
+        vm.stopPrank();
+
+        vm.prank(backup);
+        registry.initiateBackupRecovery(owner, newOwner);
+
+        // Non-Email modes never touch the nullifier; cancel must be a no-op
+        // on it (the != 0 guard) and not revert.
+        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 0);
+        vm.prank(owner);
+        registry.cancelRecovery(owner);
+        (bool pending,,,) = registry.recoveryStatus(owner);
+        assertFalse(pending);
+    }
+
+    // ── S5: checks-effects-interactions ordering ─────────────────────────────
+
+    function test_effects_applied_before_external_worldid_call() public {
+        OrderingProbeWorldID probe = new OrderingProbeWorldID();
+        SpectreRegistry reg = new SpectreRegistry(
+            address(mockVerifier),
+            address(probe),
+            address(mockDkim),
+            1,
+            1,
+            DEFAULT_TL
+        );
+        probe.arm(reg, owner, 999);
+
+        vm.prank(owner);
+        reg.register(emailHash);
+        // The probe (running inside the external World ID staticcall) reverts
+        // unless the nullifier is reserved and the recovery staged. A CEI
+        // regression would make this initiate revert.
+        reg.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+
+        (bool pending,,,) = reg.recoveryStatus(owner);
+        assertTrue(pending);
     }
 }

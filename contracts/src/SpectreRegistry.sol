@@ -87,6 +87,11 @@ contract SpectreRegistry {
         uint8 guardianCount;
         // which mode triggered the current pending recovery
         RecoveryMode pendingRecoveryMode;
+        // World ID nullifier staged with the current pending EmailWorldID
+        // recovery; zero unless one is in flight. Stored so cancelRecovery can
+        // release it (S4) — without this, a cancelled attempt would burn the
+        // identity's nullifier forever and brick EmailWorldID recovery.
+        uint256 pendingWorldIdNullifier;
     }
 
     uint8 public constant MAX_GUARDIANS = 10;
@@ -177,7 +182,8 @@ contract SpectreRegistry {
             backupWallet: address(0),
             guardianThreshold: 0,
             guardianCount: 0,
-            pendingRecoveryMode: RecoveryMode.None
+            pendingRecoveryMode: RecoveryMode.None,
+            pendingWorldIdNullifier: 0
         });
 
         emit AgentRegistered(msg.sender, emailHash);
@@ -213,6 +219,22 @@ contract SpectreRegistry {
         if (!dkimRegistry.isKnown(_hashDkimKey(emailPublicInputs)))
             revert InvalidProof();
 
+        // ── Effects (before external calls — checks-effects-interactions, S5) ──
+        // Reserve the nullifier and stage the recovery now, so even a reentrant
+        // verifier/World ID router sees the consumed state. The nullifier stays
+        // reserved until executeRecovery finalizes it or cancelRecovery (S4)
+        // releases it. NOTE: while staged-but-not-finalized the same identity
+        // could stage on a *different* agent (the per-agent pendingOwner guard
+        // is single-agent); that cross-agent edge is bounded by the per-agent
+        // email-DKIM proof requirement and is the deferred A3 / World ID v4
+        // global-nullifier-scoping issue, not introduced here.
+        usedNullifiers[worldIdNullifier] = true;
+        record.pendingWorldIdNullifier = worldIdNullifier;
+        record.pendingOwner = newOwner;
+        record.recoveryInitBlock = uint64(block.number);
+        record.pendingRecoveryMode = RecoveryMode.EmailWorldID;
+
+        // ── Interactions ──────────────────────────────────────────────────────
         if (!verifier.verify(emailProof, emailPublicInputs))
             revert InvalidProof();
 
@@ -228,11 +250,6 @@ contract SpectreRegistry {
             externalNullifier,
             worldIdProof
         );
-
-        usedNullifiers[worldIdNullifier] = true;
-        record.pendingOwner = newOwner;
-        record.recoveryInitBlock = uint64(block.number);
-        record.pendingRecoveryMode = RecoveryMode.EmailWorldID;
 
         emit RecoveryInitiated(
             agentOwner,
@@ -362,6 +379,17 @@ contract SpectreRegistry {
         if (record.pendingOwner == address(0)) revert NoRecoveryPending();
         if (msg.sender != record.owner) revert NotOwner();
 
+        // S4: release the World ID nullifier staged by an EmailWorldID
+        // recovery. Cancel is owner-only, so only the legitimate owner can
+        // trigger this release — an attacker cannot abuse it to recycle a
+        // nullifier. Without this, a single cancelled attempt would burn the
+        // owner's World ID identity and permanently brick EmailWorldID
+        // recovery for it. Backup/Social leave pendingWorldIdNullifier == 0.
+        if (record.pendingWorldIdNullifier != 0) {
+            delete usedNullifiers[record.pendingWorldIdNullifier];
+            record.pendingWorldIdNullifier = 0;
+        }
+
         record.pendingOwner = address(0);
         record.recoveryInitBlock = 0;
         record.pendingRecoveryMode = RecoveryMode.None;
@@ -383,6 +411,9 @@ contract SpectreRegistry {
         record.pendingOwner = address(0);
         record.recoveryInitBlock = 0;
         record.pendingRecoveryMode = RecoveryMode.None;
+        // Recovery finalized: drop the staged pointer but KEEP
+        // usedNullifiers[...] = true so the nullifier stays permanently spent.
+        record.pendingWorldIdNullifier = 0;
         record.nonce += 1;
 
         emit RecoveryExecuted(agentOwner, newOwner);
