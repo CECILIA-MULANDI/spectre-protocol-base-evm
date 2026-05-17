@@ -62,6 +62,21 @@ fn check_subject_field_bounds<let MAX_HEADER_LEN: u32>(
         assert(header.get_unchecked(subject_value_end) == 13, "subject must end with CR");
         assert(header.get_unchecked(subject_value_end + 1) == 10, "subject must end with LF");
     }
+
+    // S1: the subject value must be a SINGLE canonical header line. Forbid any
+    // CR (13) or LF (10) strictly inside [subject_value_start, subject_value_end).
+    // Without this, `subject_value_end` (a prover-supplied private input) could
+    // point at the CRLF of a *later* signed header, stretching the "subject"
+    // window across other headers -- and `binding_offset` could then source the
+    // `spectre:` marker from a non-Subject header. Combined with the end-is-CRLF
+    // check above, this pins subject_value_end to the FIRST CRLF after the
+    // subject, so the binding is genuinely bound to the Subject line.
+    for i in 0..MAX_HEADER_LEN {
+        if (i >= subject_value_start) & (i < subject_value_end) {
+            let b = header.get_unchecked(i);
+            assert((b != 13) & (b != 10), "subject value spans multiple header lines");
+        }
+    }
 }
 
 /// Parses `spectre:<key>:<nonce>` starting at `binding_offset` within the
@@ -100,6 +115,11 @@ fn parse_recovery_binding<let MAX_HEADER_LEN: u32>(
     let mut nonce_val: Field = 0;
     let mut past_colon: bool = false;
     let mut ended: bool = false;
+    // S2: track that each part has at least one digit and reject leading
+    // zeros, so the human-visible subject is a canonical, unambiguous
+    // encoding of (key, nonce) -- no `01` == `1`, no empty fields.
+    let mut key_started: bool = false;
+    let mut nonce_started: bool = false;
 
     for i in 0..MAX_BINDING_PAYLOAD {
         let idx = scan_start + i;
@@ -117,8 +137,16 @@ fn parse_recovery_binding<let MAX_HEADER_LEN: u32>(
                 );
                 let digit = (b - ASCII_ZERO) as Field;
                 if !past_colon {
+                    if !key_started {
+                        assert(b != ASCII_ZERO, "binding key must not have a leading zero");
+                        key_started = true;
+                    }
                     key = key * 10 + digit;
                 } else {
+                    if !nonce_started {
+                        assert(b != ASCII_ZERO, "binding nonce must not have a leading zero");
+                        nonce_started = true;
+                    }
                     nonce_val = nonce_val * 10 + digit;
                 }
             }
@@ -126,6 +154,16 @@ fn parse_recovery_binding<let MAX_HEADER_LEN: u32>(
     }
 
     assert(past_colon, "binding must contain ':' between key and nonce");
+    assert(key_started, "binding key is empty");
+    assert(nonce_started, "binding nonce is empty");
+    // S2: refuse a silently-truncated parse. If we never hit the SPACE
+    // terminator, the digits must have run to the end of the subject within
+    // the scan window; otherwise unscanned bytes remain and the value is
+    // ambiguous.
+    assert(
+        ended | (subject_value_end <= scan_start + MAX_BINDING_PAYLOAD),
+        "binding payload exceeds parser bound",
+    );
     (key, nonce_val)
 }
 
@@ -228,4 +266,48 @@ fn test_email_hash_zero_hash_fails() {
         addr.push(byte);
     }
     check_email_hash(addr, [0; 32]);
+}
+
+// -- S1 / S2 subject-binding tests ----------------------------------------------
+
+fn header_bv<let N: u32>(data: [u8; N]) -> BoundedVec<u8, 64> {
+    let mut v: BoundedVec<u8, 64> = BoundedVec::new();
+    for i in 0..N {
+        v.push(data[i]);
+    }
+    v
+}
+
+#[test]
+fn test_subject_binding_parses_canonical() {
+    // "subject:spectre:123:7\r\nx:y"
+    let h = header_bv("subject:spectre:123:7\r\nx:y".as_bytes());
+    check_subject_field_bounds(h, 8, 21);
+    let (k, n) = parse_recovery_binding(h, 8, 21, 8);
+    assert(k == 123, "key mismatch");
+    assert(n == 7, "nonce mismatch");
+}
+
+#[test(should_fail_with = "subject value spans multiple header lines")]
+fn test_s1_rejects_subject_window_spanning_headers() {
+    // Malicious prover claims the subject runs past its own CRLF into a later
+    // signed header that carries the spectre: marker.
+    // "subject:hi\r\nx:spectre:9:9\r\n" -- true subject ends at the CR at
+    // offset 10; the prover instead points subject_value_end at offset 25.
+    let h = header_bv("subject:hi\r\nx:spectre:9:9\r\n".as_bytes());
+    check_subject_field_bounds(h, 8, 25);
+}
+
+#[test(should_fail_with = "binding key must not have a leading zero")]
+fn test_s2_rejects_leading_zero_key() {
+    // "subject:spectre:01:7\r\n"
+    let h = header_bv("subject:spectre:01:7\r\n".as_bytes());
+    let _ = parse_recovery_binding(h, 8, 20, 8);
+}
+
+#[test(should_fail_with = "binding nonce is empty")]
+fn test_s2_rejects_empty_nonce() {
+    // "subject:spectre:5:\r\n"
+    let h = header_bv("subject:spectre:5:\r\n".as_bytes());
+    let _ = parse_recovery_binding(h, 8, 18, 8);
 }
