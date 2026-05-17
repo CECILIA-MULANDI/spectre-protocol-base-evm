@@ -17,6 +17,8 @@ contract DKIMRegistryTest is Test {
     event KeyProposed(bytes32 indexed keyHash, uint256 confirmAfter);
     event KeyConfirmed(bytes32 indexed keyHash);
     event KeyRevoked(bytes32 indexed keyHash);
+    event UpdaterTransferStarted(address indexed current, address indexed pending);
+    event UpdaterTransferCancelled(address indexed current, address indexed pending);
     event UpdaterTransferred(address indexed previous, address indexed next);
 
     function setUp() public {
@@ -153,23 +155,48 @@ contract DKIMRegistryTest is Test {
         assertEq(registry.confirmAfter(keyHash), block.timestamp + TIMELOCK);
     }
 
-    // ── transferUpdater ──────────────────────────────────────────────────────
+    // ── S7: constructor timelock guard ───────────────────────────────────────
 
-    function test_transfer_updater_succeeds() public {
+    function test_constructor_revert_zero_timelock() public {
+        vm.expectRevert(DKIMRegistry.InvalidTimelock.selector);
+        new DKIMRegistry(updater, 0);
+    }
+
+    // ── S6: two-step transferUpdater ─────────────────────────────────────────
+
+    function test_transfer_updater_two_step() public {
+        // Step 1: propose. Role does NOT change yet.
         vm.prank(updater);
         vm.expectEmit(true, true, false, false);
-        emit UpdaterTransferred(updater, newUpdate);
+        emit UpdaterTransferStarted(updater, newUpdate);
         registry.transferUpdater(newUpdate);
-        assertEq(registry.updater(), newUpdate);
 
-        // old updater is now powerless
+        assertEq(registry.updater(), updater);
+        assertEq(registry.pendingUpdater(), newUpdate);
+
+        // Until acceptance the old updater still has full power...
+        vm.prank(updater);
+        registry.propose(keyHash);
+        // ...and the pending updater does not.
+        vm.prank(newUpdate);
+        vm.expectRevert(DKIMRegistry.NotUpdater.selector);
+        registry.propose(keccak256("k2"));
+
+        // Step 2: pending updater accepts.
+        vm.prank(newUpdate);
+        vm.expectEmit(true, true, false, false);
+        emit UpdaterTransferred(updater, newUpdate);
+        registry.acceptUpdater();
+
+        assertEq(registry.updater(), newUpdate);
+        assertEq(registry.pendingUpdater(), address(0));
+
+        // Old updater is now powerless; new one can act.
         vm.prank(updater);
         vm.expectRevert(DKIMRegistry.NotUpdater.selector);
-        registry.propose(keyHash);
-
-        // new updater can act
+        registry.propose(keccak256("k3"));
         vm.prank(newUpdate);
-        registry.propose(keyHash);
+        registry.propose(keccak256("k3"));
     }
 
     function test_transfer_updater_revert_zero() public {
@@ -182,5 +209,67 @@ contract DKIMRegistryTest is Test {
         vm.prank(other);
         vm.expectRevert(DKIMRegistry.NotUpdater.selector);
         registry.transferUpdater(newUpdate);
+    }
+
+    function test_accept_updater_revert_not_pending() public {
+        vm.prank(updater);
+        registry.transferUpdater(newUpdate);
+
+        // A wrong-typed / uncontrolled address can never complete the
+        // transfer, so it cannot brick the role (the S6 point).
+        vm.prank(other);
+        vm.expectRevert(DKIMRegistry.NotPendingUpdater.selector);
+        registry.acceptUpdater();
+
+        assertEq(registry.updater(), updater);
+    }
+
+    function test_cancel_updater_transfer() public {
+        vm.prank(updater);
+        registry.transferUpdater(newUpdate);
+
+        vm.prank(updater);
+        vm.expectEmit(true, true, false, false);
+        emit UpdaterTransferCancelled(updater, newUpdate);
+        registry.cancelUpdaterTransfer();
+
+        assertEq(registry.pendingUpdater(), address(0));
+
+        // The previously-pending address can no longer accept.
+        vm.prank(newUpdate);
+        vm.expectRevert(DKIMRegistry.NotPendingUpdater.selector);
+        registry.acceptUpdater();
+    }
+
+    function test_cancel_updater_transfer_revert_no_pending() public {
+        vm.prank(updater);
+        vm.expectRevert(DKIMRegistry.NoPendingTransfer.selector);
+        registry.cancelUpdaterTransfer();
+    }
+
+    function test_cancel_updater_transfer_revert_not_updater() public {
+        vm.prank(updater);
+        registry.transferUpdater(newUpdate);
+
+        vm.prank(other);
+        vm.expectRevert(DKIMRegistry.NotUpdater.selector);
+        registry.cancelUpdaterTransfer();
+    }
+
+    function test_transfer_updater_overwrites_pending() public {
+        vm.startPrank(updater);
+        registry.transferUpdater(newUpdate);
+        registry.transferUpdater(other); // overwrite in-flight proposal
+        vm.stopPrank();
+
+        assertEq(registry.pendingUpdater(), other);
+
+        vm.prank(newUpdate);
+        vm.expectRevert(DKIMRegistry.NotPendingUpdater.selector);
+        registry.acceptUpdater();
+
+        vm.prank(other);
+        registry.acceptUpdater();
+        assertEq(registry.updater(), other);
     }
 }
