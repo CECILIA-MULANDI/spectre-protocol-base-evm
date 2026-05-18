@@ -8,9 +8,10 @@
  *   SPECTRE_REGISTRY  — SpectreRegistry address (0x-prefixed)
  *
  * Optional:
- *   SPECTRE_POLL_MS    — watcher poll interval (default 5000)
- *   SPECTRE_FROM_BLOCK — initial block on a fresh DB
- *   SPECTRE_DB_PATH    — override DB path (default relayer/state/spectre.db)
+ *   SPECTRE_POLL_MS       — watcher poll interval (default 5000)
+ *   SPECTRE_FROM_BLOCK    — initial block on a fresh DB
+ *   SPECTRE_CONFIRMATIONS — reorg buffer depth (default 12; 0 = process tip)
+ *   SPECTRE_DB_PATH       — override DB path (default relayer/state/spectre.db)
  */
 import { startWatcher } from "./watcher.js";
 import { startDispatcher } from "./dispatcher.js";
@@ -54,6 +55,9 @@ const watcher = startWatcher({
     : undefined,
   startFromBlock: process.env.SPECTRE_FROM_BLOCK
     ? BigInt(process.env.SPECTRE_FROM_BLOCK)
+    : undefined,
+  confirmations: process.env.SPECTRE_CONFIRMATIONS
+    ? BigInt(process.env.SPECTRE_CONFIRMATIONS)
     : undefined,
   signal: ac.signal,
 });

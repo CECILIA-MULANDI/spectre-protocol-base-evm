@@ -171,6 +171,9 @@ if (watcherRpc && watcherRegistry) {
     rpcUrl: watcherRpc,
     registryAddress: watcherRegistry as `0x${string}`,
     db,
+    confirmations: process.env.SPECTRE_CONFIRMATIONS
+      ? BigInt(process.env.SPECTRE_CONFIRMATIONS)
+      : undefined,
     signal: ac.signal,
   }).catch((err) => console.error("[watcher] fatal:", err));
   dispatcherDone = startDispatcher({ db, signal: ac.signal }).catch((err) =>

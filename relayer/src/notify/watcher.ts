@@ -8,6 +8,12 @@
  *
  * Idempotency: enqueue() uses INSERT OR IGNORE on (tx_hash, log_index), so
  * cursor replay or RPC duplication never produces duplicate alerts.
+ *
+ * Reorg safety: the watcher never processes the chain tip. It only acts on
+ * blocks at least `confirmations` deep (`confirmedHead`), and the cursor never
+ * advances past that point — so a reorg shallower than `confirmations` can
+ * only affect blocks we haven't acted on yet, and cannot produce a false or
+ * stale recovery alert.
  */
 import type { Database as Db } from "better-sqlite3";
 import { createPublicClient, http, parseAbiItem } from "viem";
@@ -24,6 +30,13 @@ const RECOVERY_INITIATED_EVENT = parseAbiItem(
 /** Largest single eth_getLogs window. Bounds catch-up after long downtime. */
 export const MAX_BLOCK_RANGE = 5_000n;
 
+/**
+ * Default confirmation depth. Base reorgs are rare and shallow; 12 blocks
+ * (~24s at ~2s/block) is comfortably beyond observed depths while keeping
+ * alert latency low. Set 0 to opt out (process at the tip).
+ */
+export const DEFAULT_CONFIRMATIONS = 12n;
+
 export type WatcherConfig = {
   rpcUrl: string;
   registryAddress: `0x${string}`;
@@ -33,9 +46,25 @@ export type WatcherConfig = {
   pollIntervalMs?: number;
   /** Block to start from on a fresh DB. Default: current head. */
   startFromBlock?: bigint;
+  /** Reorg buffer: only process blocks this deep. Default 12. 0 = tip. */
+  confirmations?: bigint;
   /** Abort signal — stops the loop after the current iteration. */
   signal?: AbortSignal;
 };
+
+/**
+ * Highest block we treat as final: `head - confirmations`. Returns null when
+ * the chain is shallower than the confirmation depth (nothing final yet).
+ * Pure — exposed for tests.
+ */
+export function confirmedHead(
+  head: bigint,
+  confirmations: bigint = DEFAULT_CONFIRMATIONS
+): bigint | null {
+  if (confirmations < 0n) throw new Error("confirmations must be >= 0");
+  if (head < confirmations) return null;
+  return head - confirmations;
+}
 
 /**
  * Compute the next [start, end] block window. Pure — exposed for tests.
@@ -56,8 +85,10 @@ export async function startWatcher(config: WatcherConfig): Promise<void> {
   const client = createPublicClient({ chain, transport: http(config.rpcUrl) });
   const chainId = chain.id;
   const interval = config.pollIntervalMs ?? 5_000;
+  const confirmations = config.confirmations ?? DEFAULT_CONFIRMATIONS;
   const signal = config.signal;
   const db = config.db;
+  console.log(`[watcher] confirmation depth: ${confirmations} block(s)`);
 
   let cursor = getCursor(db);
   if (cursor === undefined) {
@@ -70,7 +101,10 @@ export async function startWatcher(config: WatcherConfig): Promise<void> {
 
   const pollOnce = async (fromBlock: bigint): Promise<bigint> => {
     const head = await client.getBlockNumber();
-    const win = nextWindow(fromBlock, head);
+    // Only consider blocks that are `confirmations` deep — never the tip.
+    const safe = confirmedHead(head, confirmations);
+    if (safe === null) return fromBlock;
+    const win = nextWindow(fromBlock, safe);
     if (!win) return fromBlock;
 
     const logs = await client.getLogs({
