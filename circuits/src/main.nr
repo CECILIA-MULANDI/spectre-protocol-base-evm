@@ -1,9 +1,5 @@
 use SHA256::sha256_var;
-use zkemail::{
-    dkim::RSAPubkey,
-    headers::email_address::get_email_address,
-    Sequence,
-};
+use zkemail::{dkim::RSAPubkey, headers::email_address::get_email_address, Sequence};
 
 global KEY_LIMBS_2048: u32 = 18;
 global MAX_EMAIL_HEADER_LENGTH: u32 = 2048;
@@ -12,8 +8,7 @@ global MAX_EMAIL_HEADER_LENGTH: u32 = 2048;
 /// plus 20-digit nonce plus delimiters with slack.
 global MAX_BINDING_PAYLOAD: u32 = 128;
 
-// -- Helpers ---------------------------------------------------------------------
-
+// -- Helpers
 fn check_email_hash<let N: u32>(from_address: BoundedVec<u8, N>, email_hash: [u8; 32]) {
     let hashed = sha256_var(from_address.storage(), from_address.len() as u32);
     assert(hashed == email_hash, "from-address hash mismatch");
@@ -30,10 +25,7 @@ fn check_subject_field_bounds<let MAX_HEADER_LEN: u32>(
 ) {
     // Must have room for "subject:" prefix before the value.
     assert(subject_value_start >= 8, "subject_value_start too small for 'subject:' prefix");
-    assert(
-        subject_value_end + 2 <= header.len(),
-        "subject_value_end + CRLF out of header bounds",
-    );
+    assert(subject_value_end + 2 <= header.len(), "subject_value_end + CRLF out of header bounds");
     assert(subject_value_end >= subject_value_start, "subject_value_end before start");
 
     // The 8 bytes ending at subject_value_start must spell "subject:" (lower-cased
@@ -243,8 +235,7 @@ fn main(
     assert(nonce != 0, "nonce must be non-zero");
 }
 
-// -- Tests -----------------------------------------------------------------------
-
+// -- Tests --
 #[test]
 fn test_email_hash_round_trip() {
     let mut addr: BoundedVec<u8, MAX_EMAIL_HEADER_LENGTH> = BoundedVec::new();
