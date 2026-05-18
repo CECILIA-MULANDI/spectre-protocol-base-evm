@@ -7,9 +7,13 @@
  * either succeeds (row deleted), is retried later (row's next_attempt_at
  * pushed out), or eventually marked dead after exhausting attempts.
  *
- * The (tx_hash, log_index) UNIQUE constraint makes enqueue idempotent: if
- * the watcher re-processes a block range (e.g. on restart), duplicate inserts
- * are silently ignored, preventing duplicate notifications.
+ * Idempotency is durable, not just queue-local. `enqueue` records every
+ * event in `processed_events` (tx_hash, log_index) in the same transaction
+ * as the pending insert. That row outlives the pending one — which the
+ * dispatcher DELETEs on ack — so a re-scan after the watcher cursor failed
+ * to advance (crash before setCursor, or an RPC error mid-window) can never
+ * re-deliver an alert that was already handled. The UNIQUE constraint on
+ * pending_notifications is kept as a redundant backstop.
  */
 import type { Database as Db } from "better-sqlite3";
 
@@ -39,27 +43,45 @@ export type EnqueueArgs = {
 };
 
 /**
- * Enqueue a notification. Returns true if newly inserted, false if already
- * pending (dedup hit on the (tx_hash, log_index) unique constraint).
+ * Enqueue a notification. Returns true if this event is newly processed (and
+ * a pending row was created), false if it was already processed before — even
+ * if its pending row has since been delivered and acked.
+ *
+ * The processed_events insert and the pending insert run in one transaction:
+ * a crash between them must not leave an event marked processed but never
+ * enqueued, since that would permanently suppress a recovery alert.
  */
 export function enqueue(db: Db, args: EnqueueArgs): boolean {
   const now = args.now ?? Date.now();
-  const info = db
-    .prepare(
+  const txHash = args.txHash.toLowerCase();
+  const { logIndex } = args;
+
+  const run = db.transaction((): boolean => {
+    const seen = db
+      .prepare(
+        `INSERT OR IGNORE INTO processed_events (tx_hash, log_index, processed_at)
+         VALUES (?, ?, ?)`
+      )
+      .run(txHash, logIndex, now);
+    if (seen.changes === 0) return false; // durable dedup hit
+
+    db.prepare(
       `INSERT OR IGNORE INTO pending_notifications
          (agent_owner, endpoint, payload, attempts, next_attempt_at, created_at, tx_hash, log_index)
        VALUES (?, ?, ?, 0, ?, ?, ?, ?)`
-    )
-    .run(
+    ).run(
       args.agentOwner.toLowerCase(),
       args.endpoint,
       args.payload,
       now,
       now,
-      args.txHash.toLowerCase(),
-      args.logIndex
+      txHash,
+      logIndex
     );
-  return info.changes > 0;
+    return true;
+  });
+
+  return run();
 }
 
 /** Pop up to `limit` pending rows whose next_attempt_at <= now. */

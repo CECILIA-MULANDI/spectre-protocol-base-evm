@@ -34,6 +34,38 @@ test("enqueue is idempotent on (tx_hash, log_index)", () => {
   assert.equal(queue.due(db, 3000).length, 1);
 });
 
+test("dedup is durable: a re-seen event is not re-enqueued after ack", () => {
+  // The crash-before-setCursor / RPC-error-mid-window case: the dispatcher
+  // delivers + acks (deleting the pending row), the watcher restarts and
+  // rescans the same block. processed_events must still suppress it.
+  assert.equal(queue.enqueue(db, args({ now: 1000 })), true);
+  const [row] = queue.due(db, 1000);
+  assert.ok(row);
+  queue.ack(db, row.id); // pending row gone — the old UNIQUE no longer guards
+
+  assert.equal(queue.enqueue(db, args({ now: 2000 })), false);
+  assert.equal(queue.due(db, 1e15).length, 0); // no resurrected duplicate
+});
+
+test("enqueue records the event in processed_events", () => {
+  queue.enqueue(db, args({ now: 1000 }));
+  const seen = db
+    .prepare(
+      "SELECT processed_at FROM processed_events WHERE tx_hash = ? AND log_index = ?"
+    )
+    .get(args().txHash.toLowerCase(), args().logIndex) as
+    | { processed_at: number }
+    | undefined;
+  assert.ok(seen);
+  assert.equal(seen.processed_at, 1000);
+});
+
+test("a distinct log_index in the same tx is a separate event", () => {
+  assert.equal(queue.enqueue(db, args({ logIndex: 0, now: 1000 })), true);
+  assert.equal(queue.enqueue(db, args({ logIndex: 1, now: 1000 })), true);
+  assert.equal(queue.due(db, 1000).length, 2);
+});
+
 test("due returns nothing when no rows are ready", () => {
   queue.enqueue(db, args({ now: 5000 }));
   // Time hasn't reached next_attempt_at yet
