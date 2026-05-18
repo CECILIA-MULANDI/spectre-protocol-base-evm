@@ -1,11 +1,11 @@
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 import type { Config } from "./config.js";
+import { resolveAccount } from "./signer.js";
 
-export function buildClients(config: Config) {
+export async function buildClients(config: Config) {
   const chain = config.rpcUrl.includes("sepolia") ? baseSepolia : base;
-  const account = privateKeyToAccount(config.ownerPrivateKey);
+  const account = await resolveAccount(config);
 
   const publicClient = createPublicClient({
     chain,

@@ -15,7 +15,7 @@ if (!backupWallet) {
 }
 
 const config = await loadConfig();
-const { publicClient, walletClient } = buildClients(config);
+const { publicClient, walletClient } = await buildClients(config);
 
 const hash = await walletClient.writeContract({
   address: config.registryAddress,

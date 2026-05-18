@@ -77,7 +77,7 @@ if (!config.dkimRegistryAddress) {
   process.exit(1);
 }
 
-const { publicClient, walletClient } = buildClients(config);
+const { publicClient, walletClient } = await buildClients(config);
 
 console.log(`Resolving ${selector}._domainkey.${domain} ...`);
 const pubkey = await fetchDKIMPublicKey(selector, domain);

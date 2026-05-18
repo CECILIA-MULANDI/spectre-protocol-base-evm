@@ -11,7 +11,7 @@ if (!config.agentOwnerAddress) {
   process.exit(1);
 }
 
-const { publicClient, walletClient } = buildClients(config);
+const { publicClient, walletClient } = await buildClients(config);
 
 // Check timelock status before attempting
 const [pending, pendingOwner, executeAfterBlock] = await publicClient.readContract({

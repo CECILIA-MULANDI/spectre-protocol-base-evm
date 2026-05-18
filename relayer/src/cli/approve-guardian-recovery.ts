@@ -17,7 +17,7 @@ if (!agentOwner || !newOwner) {
 }
 
 const config = await loadConfig();
-const { publicClient, walletClient, account } = buildClients(config);
+const { publicClient, walletClient, account } = await buildClients(config);
 
 console.log("approving as guardian:", account.address);
 

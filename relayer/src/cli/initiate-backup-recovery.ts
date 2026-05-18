@@ -16,7 +16,7 @@ if (!agentOwner || !newOwner) {
 }
 
 const config = await loadConfig();
-const { publicClient, walletClient, account } = buildClients(config);
+const { publicClient, walletClient, account } = await buildClients(config);
 
 console.log("initiating backup recovery as:", account.address);
 console.log("agent owner:                  ", agentOwner);

@@ -16,7 +16,7 @@ if (!emailAddress) {
 }
 
 const config = await loadConfig();
-const { publicClient, walletClient, account } = buildClients(config);
+const { publicClient, walletClient, account } = await buildClients(config);
 
 const emailHash = ("0x" +
   createHash("sha256").update(emailAddress).digest("hex")) as `0x${string}`;

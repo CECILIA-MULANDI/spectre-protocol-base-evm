@@ -23,7 +23,7 @@ if (!config.agentOwnerAddress) {
   process.exit(1);
 }
 
-const { publicClient } = buildClients(config);
+const { publicClient } = await buildClients(config);
 
 const record = (await publicClient.readContract({
   address: config.registryAddress,

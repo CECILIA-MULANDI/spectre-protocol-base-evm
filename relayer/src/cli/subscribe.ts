@@ -11,8 +11,8 @@
  * Example:
  *   tsx subscribe.ts http://localhost:3001 https://hooks.example.com/spectre
  */
-import { privateKeyToAccount } from "viem/accounts";
 import { loadConfig } from "./config.js";
+import { resolveAccount } from "./signer.js";
 
 const [relayerUrl, endpoint] = process.argv.slice(2);
 if (!relayerUrl || !endpoint) {
@@ -21,7 +21,7 @@ if (!relayerUrl || !endpoint) {
 }
 
 const config = await loadConfig();
-const account = privateKeyToAccount(config.ownerPrivateKey);
+const account = await resolveAccount(config);
 
 // Random 16-byte nonce — replay protection against the same signed payload
 // being reused. The relayer doesn't currently track nonces (subscriptions are

@@ -28,7 +28,7 @@ if (!config.agentOwnerAddress) {
   process.exit(1);
 }
 
-const { publicClient, walletClient } = buildClients(config);
+const { publicClient, walletClient } = await buildClients(config);
 
 // Fetch current nonce from registry
 const record = (await publicClient.readContract({
