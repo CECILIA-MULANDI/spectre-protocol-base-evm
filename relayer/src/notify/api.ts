@@ -23,11 +23,13 @@ export function subscribeMessage(args: {
   agentOwner: Address;
   endpoint: string;
   nonce: string;
+  account?: string;
 }): string {
   return [
     "Spectre subscribe",
     `agent: ${args.agentOwner.toLowerCase()}`,
     `endpoint: ${args.endpoint}`,
+    `account: ${args.account ? args.account.toLowerCase() : "none"}`,
     `nonce: ${args.nonce}`,
   ].join("\n");
 }
@@ -49,12 +51,14 @@ const rateLimit = makeRateLimiter({ capacity: 10, refillPerSec: 1 });
 export function registerNotifyRoutes(app: Express): void {
   app.post("/subscribe", rateLimit, async (req, res) => {
     try {
-      const { agentOwner, endpoint, nonce, signature } = req.body as {
-        agentOwner?: string;
-        endpoint?: string;
-        nonce?: string;
-        signature?: string;
-      };
+      const { agentOwner, endpoint, nonce, signature, accountAddress } =
+        req.body as {
+          agentOwner?: string;
+          endpoint?: string;
+          nonce?: string;
+          signature?: string;
+          accountAddress?: string;
+        };
       if (!agentOwner || !endpoint || !nonce || !signature) {
         res.status(400).json({
           error: "agentOwner, endpoint, nonce, signature required",
@@ -65,13 +69,22 @@ export function registerNotifyRoutes(app: Express): void {
         res.status(400).json({ error: "agentOwner is not an address" });
         return;
       }
+      if (accountAddress && !isAddress(accountAddress)) {
+        res.status(400).json({ error: "accountAddress is not an address" });
+        return;
+      }
       if (!isHttpUrl(endpoint)) {
         res
           .status(400)
           .json({ error: "endpoint must be a valid http(s) URL" });
         return;
       }
-      const message = subscribeMessage({ agentOwner, endpoint, nonce });
+      const message = subscribeMessage({
+        agentOwner,
+        endpoint,
+        nonce,
+        account: accountAddress,
+      });
       const ok = await verifyMessage({
         address: agentOwner,
         message,
@@ -85,6 +98,7 @@ export function registerNotifyRoutes(app: Express): void {
         agentOwner,
         channel: { kind: "webhook", endpoint },
         createdAt: Date.now(),
+        accountAddress: accountAddress as `0x${string}` | undefined,
       });
       res.json({ ok: true });
     } catch (err: unknown) {

@@ -24,7 +24,50 @@ export type RecoveryAlert = {
   cancelInstructions: string;
 };
 
+export type AccountActivityAlert = {
+  type: "AccountActivity";
+  agentOwner: `0x${string}`;
+  account: `0x${string}`;
+  target: `0x${string}`;
+  value: string; // wei, serialized
+  txHash: `0x${string}`;
+  blockNumber: string; // bigint serialized
+  chainId: number;
+  note: string;
+};
+
 export type DeliverFn = (endpoint: string, payload: string) => Promise<void>;
+
+/**
+ * Spend detected from a watched SpectreAccount. This is the closest Spectre
+ * gets to compromise detection: it does not prove a hack, only that the
+ * account moved value — the owner decides if it was authorized and, if not,
+ * initiates a recovery (which freezes the account).
+ */
+export function buildAccountAlert(args: {
+  agentOwner: `0x${string}`;
+  account: `0x${string}`;
+  target: `0x${string}`;
+  value: bigint;
+  txHash: `0x${string}`;
+  blockNumber: bigint;
+  chainId: number;
+}): AccountActivityAlert {
+  return {
+    type: "AccountActivity",
+    agentOwner: args.agentOwner,
+    account: args.account,
+    target: args.target,
+    value: args.value.toString(),
+    txHash: args.txHash,
+    blockNumber: args.blockNumber.toString(),
+    chainId: args.chainId,
+    note:
+      `SpectreAccount ${args.account} executed a call to ${args.target} ` +
+      `(value ${args.value.toString()} wei). If you did not authorize this, ` +
+      `initiate a recovery now — once it is pending the account freezes.`,
+  };
+}
 
 export function buildAlert(args: {
   agentOwner: `0x${string}`;

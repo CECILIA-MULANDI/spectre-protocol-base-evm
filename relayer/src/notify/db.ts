@@ -32,8 +32,13 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   agent_owner       TEXT PRIMARY KEY NOT NULL,
   channel_kind      TEXT NOT NULL,
   channel_endpoint  TEXT NOT NULL,
-  created_at        INTEGER NOT NULL
+  created_at        INTEGER NOT NULL,
+  account_address   TEXT
 ) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_subs_account
+  ON subscriptions (account_address)
+  WHERE account_address IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS watcher_cursor (
   id                    INTEGER PRIMARY KEY CHECK (id = 1),
@@ -73,5 +78,12 @@ export function openDb(path: string = DEFAULT_DB_PATH): Db {
   }
   const db = new Database(path);
   db.exec(SCHEMA);
+  // Migrate DBs created before account-activity watching was added.
+  const cols = db
+    .prepare("PRAGMA table_info(subscriptions)")
+    .all() as { name: string }[];
+  if (!cols.some((c) => c.name === "account_address")) {
+    db.exec("ALTER TABLE subscriptions ADD COLUMN account_address TEXT");
+  }
   return db;
 }

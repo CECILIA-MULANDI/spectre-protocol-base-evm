@@ -18,13 +18,17 @@
 import type { Database as Db } from "better-sqlite3";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { buildAlert } from "./channels.js";
+import { buildAlert, buildAccountAlert } from "./channels.js";
 import * as subs from "./subscriptions.js";
 import { getCursor, setCursor } from "./cursor.js";
 import { enqueue } from "./queue.js";
 
 const RECOVERY_INITIATED_EVENT = parseAbiItem(
   "event RecoveryInitiated(address indexed owner, address indexed newOwner, uint64 executeAfterBlock, uint8 mode)"
+);
+
+const ACCOUNT_EXECUTED_EVENT = parseAbiItem(
+  "event Executed(address indexed target, uint256 value, bytes data)"
 );
 
 /** Largest single eth_getLogs window. Bounds catch-up after long downtime. */
@@ -140,6 +144,46 @@ export async function startWatcher(config: WatcherConfig): Promise<void> {
         console.log(
           `[watcher] queued notification for ${owner} tx=${log.transactionHash} mode=${alert.mode}`
         );
+      }
+    }
+
+    // Account-activity: spends from any watched SpectreAccount. Same window,
+    // same idempotent queue (Executed logs have distinct (tx,logIndex)).
+    const accounts = subs.watchedAccounts();
+    if (accounts.length > 0) {
+      const acctLogs = await client.getLogs({
+        address: accounts,
+        event: ACCOUNT_EXECUTED_EVENT,
+        fromBlock: win.start,
+        toBlock: win.end,
+      });
+      for (const log of acctLogs) {
+        const account = log.address as `0x${string}`;
+        const sub = subs.byAccount(account);
+        if (!sub) continue;
+
+        const alert = buildAccountAlert({
+          agentOwner: sub.agentOwner,
+          account,
+          target: log.args.target!,
+          value: log.args.value!,
+          txHash: log.transactionHash!,
+          blockNumber: log.blockNumber!,
+          chainId,
+        });
+
+        const inserted = enqueue(db, {
+          agentOwner: sub.agentOwner,
+          endpoint: sub.channel.endpoint,
+          payload: JSON.stringify(alert),
+          txHash: log.transactionHash!,
+          logIndex: log.logIndex!,
+        });
+        if (inserted) {
+          console.log(
+            `[watcher] queued account-activity for ${account} tx=${log.transactionHash}`
+          );
+        }
       }
     }
 

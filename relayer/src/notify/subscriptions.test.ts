@@ -85,3 +85,46 @@ test("all returns subscriptions ordered by created_at", () => {
   assert.equal(list[0]?.createdAt, 100);
   assert.equal(list[1]?.createdAt, 200);
 });
+
+test("accountAddress round-trips and is normalized", () => {
+  subs.set({
+    agentOwner: "0x1111111111111111111111111111111111111111",
+    channel: { kind: "webhook", endpoint: "https://a.example/hook" },
+    createdAt: 1,
+    accountAddress: "0xCcCCccccCCCCcCCCCCcCcCccCcCCCcCcccccCccC",
+  });
+  const found = subs.get("0x1111111111111111111111111111111111111111");
+  assert.equal(
+    found?.accountAddress,
+    "0xcccccccccccccccccccccccccccccccccccccccc"
+  );
+});
+
+test("watchedAccounts returns distinct non-null accounts; byAccount reverse-maps", () => {
+  subs.set({
+    agentOwner: "0x1111111111111111111111111111111111111111",
+    channel: { kind: "webhook", endpoint: "https://a.example/hook" },
+    createdAt: 1,
+    accountAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+  });
+  // No account → not watched.
+  subs.set({
+    agentOwner: "0x2222222222222222222222222222222222222222",
+    channel: { kind: "webhook", endpoint: "https://b.example/hook" },
+    createdAt: 2,
+  });
+  assert.deepEqual(subs.watchedAccounts(), [
+    "0xcccccccccccccccccccccccccccccccccccccccc",
+  ]);
+  const owner = subs.byAccount(
+    "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+  );
+  assert.equal(
+    owner?.agentOwner,
+    "0x1111111111111111111111111111111111111111"
+  );
+  assert.equal(
+    subs.byAccount("0xdddddddddddddddddddddddddddddddddddddddd"),
+    undefined
+  );
+});

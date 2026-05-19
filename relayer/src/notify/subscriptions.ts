@@ -13,6 +13,8 @@ export type Subscription = {
   agentOwner: `0x${string}`;
   channel: Channel;
   createdAt: number;
+  /** Optional SpectreAccount to also watch for spend activity. */
+  accountAddress?: `0x${string}`;
 };
 
 let _db: Db | undefined;
@@ -31,42 +33,73 @@ function normalize(addr: `0x${string}`): `0x${string}` {
   return addr.toLowerCase() as `0x${string}`;
 }
 
-export function get(agentOwner: `0x${string}`): Subscription | undefined {
-  const row = db()
-    .prepare(
-      "SELECT agent_owner, channel_kind, channel_endpoint, created_at FROM subscriptions WHERE agent_owner = ?"
-    )
-    .get(normalize(agentOwner)) as
-    | {
-        agent_owner: `0x${string}`;
-        channel_kind: string;
-        channel_endpoint: string;
-        created_at: number;
-      }
-    | undefined;
-  if (!row) return undefined;
-  return {
+type Row = {
+  agent_owner: `0x${string}`;
+  channel_kind: string;
+  channel_endpoint: string;
+  created_at: number;
+  account_address: string | null;
+};
+
+const COLS =
+  "agent_owner, channel_kind, channel_endpoint, created_at, account_address";
+
+function rowToSub(row: Row): Subscription {
+  const sub: Subscription = {
     agentOwner: row.agent_owner,
     channel: { kind: "webhook", endpoint: row.channel_endpoint },
     createdAt: row.created_at,
   };
+  if (row.account_address) {
+    sub.accountAddress = row.account_address as `0x${string}`;
+  }
+  return sub;
+}
+
+export function get(agentOwner: `0x${string}`): Subscription | undefined {
+  const row = db()
+    .prepare(`SELECT ${COLS} FROM subscriptions WHERE agent_owner = ?`)
+    .get(normalize(agentOwner)) as Row | undefined;
+  return row ? rowToSub(row) : undefined;
+}
+
+/** Reverse lookup: the subscription whose watched account is `account`. */
+export function byAccount(
+  account: `0x${string}`
+): Subscription | undefined {
+  const row = db()
+    .prepare(`SELECT ${COLS} FROM subscriptions WHERE account_address = ?`)
+    .get(normalize(account)) as Row | undefined;
+  return row ? rowToSub(row) : undefined;
+}
+
+/** Distinct SpectreAccount addresses any subscription wants watched. */
+export function watchedAccounts(): `0x${string}`[] {
+  const rows = db()
+    .prepare(
+      "SELECT DISTINCT account_address FROM subscriptions WHERE account_address IS NOT NULL"
+    )
+    .all() as { account_address: `0x${string}` }[];
+  return rows.map((r) => r.account_address);
 }
 
 export function set(sub: Subscription): void {
   db()
     .prepare(
-      `INSERT INTO subscriptions (agent_owner, channel_kind, channel_endpoint, created_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO subscriptions (agent_owner, channel_kind, channel_endpoint, created_at, account_address)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(agent_owner) DO UPDATE SET
          channel_kind     = excluded.channel_kind,
          channel_endpoint = excluded.channel_endpoint,
-         created_at       = excluded.created_at`
+         created_at       = excluded.created_at,
+         account_address  = excluded.account_address`
     )
     .run(
       normalize(sub.agentOwner),
       sub.channel.kind,
       sub.channel.endpoint,
-      sub.createdAt
+      sub.createdAt,
+      sub.accountAddress ? normalize(sub.accountAddress) : null
     );
 }
 
@@ -79,18 +112,7 @@ export function remove(agentOwner: `0x${string}`): boolean {
 
 export function all(): Subscription[] {
   const rows = db()
-    .prepare(
-      "SELECT agent_owner, channel_kind, channel_endpoint, created_at FROM subscriptions ORDER BY created_at ASC"
-    )
-    .all() as {
-    agent_owner: `0x${string}`;
-    channel_kind: string;
-    channel_endpoint: string;
-    created_at: number;
-  }[];
-  return rows.map((r) => ({
-    agentOwner: r.agent_owner,
-    channel: { kind: "webhook", endpoint: r.channel_endpoint },
-    createdAt: r.created_at,
-  }));
+    .prepare(`SELECT ${COLS} FROM subscriptions ORDER BY created_at ASC`)
+    .all() as Row[];
+  return rows.map(rowToSub);
 }

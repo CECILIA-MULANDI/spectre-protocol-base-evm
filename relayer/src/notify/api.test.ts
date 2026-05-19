@@ -4,7 +4,7 @@ import express from "express";
 import type { AddressInfo } from "node:net";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { openDb } from "./db.js";
-import { setDb as setSubsDb } from "./subscriptions.js";
+import { setDb as setSubsDb, byAccount } from "./subscriptions.js";
 import {
   registerNotifyRoutes,
   subscribeMessage,
@@ -60,6 +60,65 @@ test("POST /subscribe accepts a valid signature and persists", async () => {
     assert.equal(g.status, 200);
     const body = (await g.json()) as { channel: { endpoint: string } };
     assert.equal(body.channel.endpoint, endpoint);
+  });
+});
+
+test("POST /subscribe with accountAddress persists it (signed) and reverse-maps", async () => {
+  const account = privateKeyToAccount(generatePrivateKey());
+  const endpoint = "https://example.com/hook";
+  const nonce = "0xabc";
+  const accountAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
+  const message = subscribeMessage({
+    agentOwner: account.address,
+    endpoint,
+    nonce,
+    account: accountAddress,
+  });
+  const signature = await account.signMessage({ message });
+
+  await withServer(async (baseUrl) => {
+    const r = await fetch(`${baseUrl}/subscribe`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        agentOwner: account.address,
+        endpoint,
+        nonce,
+        signature,
+        accountAddress,
+      }),
+    });
+    assert.equal(r.status, 200);
+    // The watcher finds the owner by the watched account.
+    assert.equal(
+      byAccount(accountAddress)?.agentOwner,
+      account.address.toLowerCase()
+    );
+  });
+});
+
+test("POST /subscribe rejects accountAddress not covered by the signature", async () => {
+  const account = privateKeyToAccount(generatePrivateKey());
+  const endpoint = "https://example.com/hook";
+  const nonce = "0xabd";
+  // Signed WITHOUT an account...
+  const message = subscribeMessage({ agentOwner: account.address, endpoint, nonce });
+  const signature = await account.signMessage({ message });
+
+  await withServer(async (baseUrl) => {
+    // ...but an accountAddress is smuggled into the request body.
+    const r = await fetch(`${baseUrl}/subscribe`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        agentOwner: account.address,
+        endpoint,
+        nonce,
+        signature,
+        accountAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+      }),
+    });
+    assert.equal(r.status, 401); // message mismatch → signature fails
   });
 });
 

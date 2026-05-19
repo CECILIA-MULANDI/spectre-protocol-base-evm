@@ -2,21 +2,24 @@
  * Subscribe an agent owner's address to recovery-event notifications.
  *
  * Usage:
- *   tsx subscribe.ts <relayer-base-url> <webhook-endpoint>
+ *   tsx subscribe.ts <relayer-base-url> <webhook-endpoint> [spectre-account]
  *
  * Reads the owner's private key from config.json (ownerPrivateKey) and signs a
  * canonical message proving control of the address. The relayer verifies the
- * signature before storing the subscription.
+ * signature before storing the subscription. Pass an optional SpectreAccount
+ * address to also be alerted on spends from it (compromise signal).
  *
  * Example:
- *   tsx subscribe.ts http://localhost:3001 https://hooks.example.com/spectre
+ *   tsx subscribe.ts http://localhost:3001 https://hooks.example.com/spectre 0xAcc...
  */
 import { loadConfig } from "./config.js";
 import { resolveAccount } from "./signer.js";
 
-const [relayerUrl, endpoint] = process.argv.slice(2);
+const [relayerUrl, endpoint, accountAddress] = process.argv.slice(2);
 if (!relayerUrl || !endpoint) {
-  console.error("usage: subscribe <relayer-base-url> <webhook-endpoint>");
+  console.error(
+    "usage: subscribe <relayer-base-url> <webhook-endpoint> [spectre-account]"
+  );
   process.exit(1);
 }
 
@@ -33,6 +36,7 @@ const message = [
   "Spectre subscribe",
   `agent: ${account.address.toLowerCase()}`,
   `endpoint: ${endpoint}`,
+  `account: ${accountAddress ? accountAddress.toLowerCase() : "none"}`,
   `nonce: ${nonce}`,
 ].join("\n");
 
@@ -46,6 +50,7 @@ const resp = await fetch(`${relayerUrl}/subscribe`, {
     endpoint,
     nonce,
     signature,
+    ...(accountAddress ? { accountAddress } : {}),
   }),
 });
 

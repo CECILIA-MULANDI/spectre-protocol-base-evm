@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildAlert, deliver } from "./channels.js";
+import { buildAlert, buildAccountAlert, deliver } from "./channels.js";
 
 test("buildAlert produces the expected serializable shape", () => {
   const alert = buildAlert({
@@ -36,6 +36,24 @@ test("buildAlert clamps unknown mode index to 'None'", () => {
     chainId: 1,
   });
   assert.equal(alert.mode, "None");
+});
+
+test("buildAccountAlert produces a JSON-safe AccountActivity shape", () => {
+  const alert = buildAccountAlert({
+    agentOwner: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    account: "0xcccccccccccccccccccccccccccccccccccccccc",
+    target: "0xdddddddddddddddddddddddddddddddddddddddd",
+    value: 5_000_000_000_000_000_000n,
+    txHash:
+      "0x2222222222222222222222222222222222222222222222222222222222222222",
+    blockNumber: 777n,
+    chainId: 84532,
+  });
+  assert.equal(alert.type, "AccountActivity");
+  assert.equal(alert.value, "5000000000000000000"); // bigint stringified
+  assert.equal(alert.blockNumber, "777");
+  assert.match(alert.note, /initiate a recovery/);
+  assert.deepEqual(JSON.parse(JSON.stringify(alert)), alert);
 });
 
 test("deliver POSTs JSON with content-type and rejects on non-2xx", async () => {
