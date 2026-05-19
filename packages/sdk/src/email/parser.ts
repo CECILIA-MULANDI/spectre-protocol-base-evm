@@ -2,18 +2,24 @@ import { decodeUtf8, encodeUtf8, indexOfBytes } from "./bytes.js";
 import type { DKIMFields, ParsedEmail, Sequence } from "./types.js";
 
 const BINDING_PREFIX = "spectre:";
-
+//We need to turn raw bytes into circuit inputs
+// This where the exact tuple that the noir circuit consumes as private inputs come from
 export async function parseEmail(rawEml: Uint8Array): Promise<ParsedEmail> {
   const emailStr = decodeUtf8(rawEml);
   const fromAddress = extractFromAddress(emailStr);
   const dkim = extractDKIMFields(emailStr);
-  const fromHeaderSequence = findHeaderFieldSequence(dkim.canonicalHeader, "from");
+  const fromHeaderSequence = findHeaderFieldSequence(
+    dkim.canonicalHeader,
+    "from"
+  );
   const fromAddressSequence = findFromAddressSequence(
     dkim.canonicalHeader,
     fromHeaderSequence,
     fromAddress
   );
-  const { subjectValueStart, subjectValueEnd } = findSubjectValueRange(dkim.canonicalHeader);
+  const { subjectValueStart, subjectValueEnd } = findSubjectValueRange(
+    dkim.canonicalHeader
+  );
   const bindingOffset = findBindingOffset(
     dkim.canonicalHeader,
     subjectValueStart,
@@ -30,6 +36,9 @@ export async function parseEmail(rawEml: Uint8Array): Promise<ParsedEmail> {
   };
 }
 
+// We pull the `From: header`
+// Unfolf the RFC 5322 folding whitespace
+// Then extract the address
 function extractFromAddress(emailStr: string): string {
   const match = emailStr.match(/^From:[ \t]*([\s\S]*?)(?=\r?\n[^ \t])/im);
   if (!match?.[1]) throw new Error("No From header found in email");
@@ -37,11 +46,15 @@ function extractFromAddress(emailStr: string): string {
   const bracketMatch = headerValue.match(/<([^>]+)>/);
   const candidate = (bracketMatch?.[1] ?? headerValue).trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) {
-    throw new Error(`Could not extract a valid email address from From header: ${headerValue}`);
+    throw new Error(
+      `Could not extract a valid email address from From header: ${headerValue}`
+    );
   }
   return candidate;
 }
-
+// We find the DKIM-Sig and parse the tags: a=(algorithm like rsa-sha256),
+// d=(domain like gmail.com ), s=(selector-> which is the DNS key),
+// h=(order list of the header names that were signed), b=(signature)
 function extractDKIMFields(emailStr: string): DKIMFields {
   const dkimMatch = emailStr.match(
     /DKIM-Signature:([\s\S]*?)(?=\r?\n\S|\r?\n\r?\n)/i
@@ -97,7 +110,10 @@ function extractDKIMFields(emailStr: string): DKIMFields {
   };
 }
 
-function findHeaderFieldSequence(canonicalHeader: Uint8Array, fieldName: string): Sequence {
+function findHeaderFieldSequence(
+  canonicalHeader: Uint8Array,
+  fieldName: string
+): Sequence {
   const needle = encodeUtf8(`${fieldName}:`);
   // Look for the field anchored at start-of-line: either at offset 0 or preceded by CRLF.
   let pos = 0;
@@ -116,7 +132,9 @@ function findHeaderFieldSequence(canonicalHeader: Uint8Array, fieldName: string)
     }
     pos = idx + 1;
   }
-  throw new Error(`Could not find '${fieldName}:' header at start of a canonical header line`);
+  throw new Error(
+    `Could not find '${fieldName}:' header at start of a canonical header line`
+  );
 }
 
 function findFromAddressSequence(
@@ -156,7 +174,10 @@ function findBindingOffset(
   subjectValueStart: number,
   subjectValueEnd: number
 ): number {
-  const subjectValue = canonicalHeader.subarray(subjectValueStart, subjectValueEnd);
+  const subjectValue = canonicalHeader.subarray(
+    subjectValueStart,
+    subjectValueEnd
+  );
   const needle = encodeUtf8(BINDING_PREFIX);
   const relative = indexOfBytes(subjectValue, needle);
   if (relative === -1) {
@@ -178,7 +199,9 @@ function base64Decode(b64: string): Uint8Array {
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   }
-  const buf = (globalThis as { Buffer?: { from(s: string, enc: string): Uint8Array } }).Buffer;
+  const buf = (
+    globalThis as { Buffer?: { from(s: string, enc: string): Uint8Array } }
+  ).Buffer;
   if (!buf) throw new Error("base64 decode unavailable");
   return new Uint8Array(buf.from(b64, "base64"));
 }
