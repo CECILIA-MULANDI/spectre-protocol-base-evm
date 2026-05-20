@@ -40,7 +40,16 @@ export type TxResult = {
 
 export type ProverConfig =
   | { type: "hosted"; url: string }
-  | { type: "browser"; circuitUrl: string };
+  | {
+      type: "browser";
+      circuitUrl: string;
+      /** SHA-256 of the circuit JSON bytes (hex, with or without 0x).
+       *  Required unless `allowUnpinnedCircuit` is true. Pin to the artifact
+       *  whose VK is in the deployed Verifier.sol. */
+      circuitDigest?: string;
+      /** Dev/test override: skip the digest check. Logs a warning. */
+      allowUnpinnedCircuit?: boolean;
+    };
 
 export type SpectreClientConfig = {
   rpcUrl: string;

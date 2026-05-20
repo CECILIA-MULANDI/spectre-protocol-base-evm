@@ -30,7 +30,10 @@ export class SpectreClient {
     this.prover =
       config.prover.type === "hosted"
         ? new HostedProver(config.prover.url)
-        : new BrowserProver(config.prover.circuitUrl);
+        : new BrowserProver(config.prover.circuitUrl, {
+            circuitDigest: config.prover.circuitDigest,
+            allowUnpinnedCircuit: config.prover.allowUnpinnedCircuit,
+          });
   }
 
   // Registration
