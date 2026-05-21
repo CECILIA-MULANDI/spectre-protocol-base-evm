@@ -159,7 +159,7 @@ fn parse_recovery_binding<let MAX_HEADER_LEN: u32>(
     (key, nonce_val)
 }
 
-// -- Main circuit --------------------------------------------------------------
+// Main circuit
 
 /// Public inputs:
 ///   pubkey              - RSA-2048 DKIM public key (committed from DNS)
@@ -259,7 +259,7 @@ fn test_email_hash_zero_hash_fails() {
     check_email_hash(addr, [0; 32]);
 }
 
-// -- S1 / S2 subject-binding tests ----------------------------------------------
+// -- S1 / S2 subject-binding tests
 
 fn header_bv<let N: u32>(data: [u8; N]) -> BoundedVec<u8, 64> {
     let mut v: BoundedVec<u8, 64> = BoundedVec::new();
