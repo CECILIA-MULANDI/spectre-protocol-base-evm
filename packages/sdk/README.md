@@ -29,11 +29,14 @@ import { SpectreClient } from "@spectre-protocol/sdk";
 
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0xc8458d4B3b67a9a9643d6818dC73D2a10723C551",
+  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1",
   privateKey: process.env.PRIVATE_KEY as `0x${string}`,
   prover: {
     type: "browser",
     circuitUrl: "https://spectreprotocol.xyz/circuit/v1/spectre.json",
+    // SHA-256 of the circuit artifact whose VK is in the deployed Verifier.
+    // Required for trustless use (omit + allowUnpinnedCircuit:true only in dev).
+    circuitDigest: "e7243505c53a3cdc52dc0982e7a59c6f7f1330b3516f456165666a887a25bbf8",
   },
 });
 
@@ -66,12 +69,15 @@ type SpectreClientConfig = {
 ```ts
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0xc8458d4B3b67a9a9643d6818dC73D2a10723C551",
+  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1",
   privateKey: "0x...",
   prover: {
     type: "browser",
     // Spectre-hosted circuit artifact (versioned, immutable per version)
     circuitUrl: "https://spectreprotocol.xyz/circuit/v1/spectre.json",
+    // SHA-256 of the circuit artifact whose VK is in the deployed Verifier.
+    // Required for trustless use (omit + allowUnpinnedCircuit:true only in dev).
+    circuitDigest: "e7243505c53a3cdc52dc0982e7a59c6f7f1330b3516f456165666a887a25bbf8",
   },
 });
 ```
@@ -85,7 +91,7 @@ Live demo: <https://spectreprotocol.xyz/test-browser-prover.html>
 ```ts
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0xc8458d4B3b67a9a9643d6818dC73D2a10723C551",
+  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1",
   privateKey: "0x...",
   prover: { type: "hosted", url: "http://localhost:3001" },
 });

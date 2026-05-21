@@ -243,11 +243,18 @@ forge test -vvv
 
 ## Deployed contracts (Base Sepolia)
 
-| Contract        | Address                                      |
-| --------------- | -------------------------------------------- |
-| SpectreRegistry | `0xc8458d4B3b67a9a9643d6818dC73D2a10723C551` |
-| HonkVerifier    | `0x8a4C0AdAFe442A9c9E7Aaf7815bD92fd3F961917` |
-| World ID Router | `0x42FF98C4E85212a5D31358ACbFe76a621b784Fac` |
+`SpectreRegistry` is a Transparent proxy — use the **proxy** address; the implementation is upgradeable behind it.
+
+| Contract                       | Address                                      |
+| ------------------------------ | -------------------------------------------- |
+| **SpectreRegistry (proxy)**    | `0xBe53383054Fda41A9F71b8593384144c367b01A1` |
+| SpectreRegistry implementation | `0xf86A09356FaA1E179B559Bd22e81889882acB2D4` |
+| ProxyAdmin                     | `0xcCD55f05F1b6a8269a0cbB3a419858AA8939f8d2` |
+| HonkVerifier                   | `0xc034Dc7e3157C5b08aFB7332058dD68d83df71DF` |
+| DKIMRegistry                   | `0x5239b713F4722fF928E3f08891C364f151F11f73` |
+| PersonhoodRegistry             | `0xa095610B51A638968efB3aD1ecB5Aa2994Afa065` |
+| WorldIDPersonhoodAdapter       | `0xa472a4FA1ed3575244AC50594Ecd418E56D4117b` |
+| World ID Router                | `0x42FF98C4E85212a5D31358ACbFe76a621b784Fac` |
 
 ## Environment variables
 
