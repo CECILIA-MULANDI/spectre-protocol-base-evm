@@ -4,6 +4,7 @@ pragma solidity ^0.8.21;
 import "forge-std/Test.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/SpectreAccount.sol";
+import "../src/WorldIDPersonhoodAdapter.sol";
 
 contract MockVerifier {
     function verify(bytes calldata, bytes32[] calldata) external pure returns (bool) {
@@ -52,13 +53,13 @@ contract SpectreAccountTest is Test {
     uint64 constant TIMELOCK = 10;
 
     function setUp() public {
+        WorldIDPersonhoodAdapter personhood =
+            new WorldIDPersonhoodAdapter(address(new MockWorldID()), 1, 1);
         registry = new SpectreRegistry(
             address(new MockVerifier()),
-            address(new MockWorldID()),
+            address(personhood),
             address(new MockDKIMRegistry()),
-            1, // worldIdGroupId
-            1, // externalNullifier
-            TIMELOCK // defaultTimelockBlocks
+            TIMELOCK
         );
 
         vm.prank(agentId);

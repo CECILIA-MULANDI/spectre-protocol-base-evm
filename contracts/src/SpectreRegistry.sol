@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import "./IWorldID.sol";
+import {IPersonhoodVerifier} from "./IPersonhoodVerifier.sol";
 
 interface IUltraVerifier {
     function verify(
@@ -17,14 +17,14 @@ interface IDKIMRegistry {
 /// @title SpectreRegistry
 /// @notice ZK key recovery protocol for AI agents.
 ///         Supports three recovery modes:
-///           1. EmailWorldID — DKIM email proof + World ID Semaphore proof
-///           2. Backup       — pre-registered backup wallet initiates
-///           3. Social       — M-of-N guardian approvals
+///           1. EmailPersonhood — DKIM email proof + pluggable personhood proof
+///           2. Backup          — pre-registered backup wallet initiates
+///           3. Social          — M-of-N guardian approvals
 ///         All modes are time-locked so the real owner can cancel a fraudulent attempt.
 contract SpectreRegistry {
     enum RecoveryMode {
         None,
-        EmailWorldID,
+        EmailPersonhood,
         Social,
         Backup
     }
@@ -87,11 +87,11 @@ contract SpectreRegistry {
         uint8 guardianCount;
         // which mode triggered the current pending recovery
         RecoveryMode pendingRecoveryMode;
-        // World ID nullifier staged with the current pending EmailWorldID
+        // Personhood nullifier staged with the current pending EmailPersonhood
         // recovery; zero unless one is in flight. Stored so cancelRecovery can
         // release it (S4) — without this, a cancelled attempt would burn the
-        // identity's nullifier forever and brick EmailWorldID recovery.
-        uint256 pendingWorldIdNullifier;
+        // identity's nullifier forever and brick EmailPersonhood recovery.
+        uint256 pendingPersonhoodNullifier;
     }
 
     uint8 public constant MAX_GUARDIANS = 10;
@@ -110,7 +110,7 @@ contract SpectreRegistry {
     // owner → record
     mapping(address => AgentRecord) public records;
 
-    // World ID nullifier hash → used
+    // Personhood nullifier hash → used
     mapping(uint256 => bool) public usedNullifiers;
 
     // guardian storage
@@ -123,10 +123,8 @@ contract SpectreRegistry {
 
     // External contracts
     IUltraVerifier public immutable verifier;
-    IWorldID public immutable worldId;
+    IPersonhoodVerifier public immutable personhood;
     IDKIMRegistry public immutable dkimRegistry;
-    uint256 public immutable worldIdGroupId;
-    uint256 public immutable externalNullifier;
 
     // Default timelock — set per deployment, immutable.
     // Acts as both the protocol default AND the minimum any user can pick.
@@ -134,23 +132,19 @@ contract SpectreRegistry {
 
     constructor(
         address _verifier,
-        address _worldId,
+        address _personhood,
         address _dkimRegistry,
-        uint256 _worldIdGroupId,
-        uint256 _externalNullifier,
         uint64 _defaultTimelockBlocks
     ) {
         if (
             _verifier == address(0) ||
-            _worldId == address(0) ||
+            _personhood == address(0) ||
             _dkimRegistry == address(0)
         ) revert ZeroAddress();
         if (_defaultTimelockBlocks == 0) revert TimelockTooShort();
         verifier = IUltraVerifier(_verifier);
-        worldId = IWorldID(_worldId);
+        personhood = IPersonhoodVerifier(_personhood);
         dkimRegistry = IDKIMRegistry(_dkimRegistry);
-        worldIdGroupId = _worldIdGroupId;
-        externalNullifier = _externalNullifier;
         defaultTimelockBlocks = _defaultTimelockBlocks;
     }
 
@@ -183,28 +177,29 @@ contract SpectreRegistry {
             guardianThreshold: 0,
             guardianCount: 0,
             pendingRecoveryMode: RecoveryMode.None,
-            pendingWorldIdNullifier: 0
+            pendingPersonhoodNullifier: 0
         });
 
         emit AgentRegistered(msg.sender, emailHash);
     }
 
-    // Mode 1: EmailWorldID recovery
-    /// @notice Initiate recovery using DKIM email proof + World ID Semaphore proof.
+    // Mode 1: EmailPersonhood recovery
+    /// @notice Initiate recovery: DKIM email proof + a personhood proof.
+    /// @param personhoodNullifier Per-identity dedup primitive (tracked here).
+    /// @param personhoodProof     Opaque blob the configured IPersonhoodVerifier decodes.
     function initiateRecovery(
         address agentOwner,
         address newOwner,
         bytes calldata emailProof,
         bytes32[] calldata emailPublicInputs,
-        uint256 worldIdRoot,
-        uint256 worldIdNullifier,
-        uint256[8] calldata worldIdProof
+        uint256 personhoodNullifier,
+        bytes calldata personhoodProof
     ) external {
         AgentRecord storage record = records[agentOwner];
         if (record.owner == address(0)) revert NotRegistered();
         if (record.pendingOwner != address(0)) revert RecoveryPending();
         if (newOwner == address(0)) revert ZeroAddress();
-        if (usedNullifiers[worldIdNullifier]) revert NullifierAlreadyUsed();
+        if (usedNullifiers[personhoodNullifier]) revert NullifierAlreadyUsed();
 
         // Bind the email proof's public inputs to this recovery before checking the proof.
         // The circuit guarantees the inputs reflect a real DKIM-signed email; here we
@@ -221,18 +216,14 @@ contract SpectreRegistry {
 
         // ── Effects (before external calls — checks-effects-interactions, S5) ──
         // Reserve the nullifier and stage the recovery now, so even a reentrant
-        // verifier/World ID router sees the consumed state. The nullifier stays
-        // reserved until executeRecovery finalizes it or cancelRecovery (S4)
-        // releases it. NOTE: while staged-but-not-finalized the same identity
-        // could stage on a *different* agent (the per-agent pendingOwner guard
-        // is single-agent); that cross-agent edge is bounded by the per-agent
-        // email-DKIM proof requirement and is the deferred A3 / World ID v4
-        // global-nullifier-scoping issue, not introduced here.
-        usedNullifiers[worldIdNullifier] = true;
-        record.pendingWorldIdNullifier = worldIdNullifier;
+        // verifier/personhood adapter sees the consumed state. The nullifier
+        // stays reserved until executeRecovery finalizes it or cancelRecovery
+        // (S4) releases it.
+        usedNullifiers[personhoodNullifier] = true;
+        record.pendingPersonhoodNullifier = personhoodNullifier;
         record.pendingOwner = newOwner;
         record.recoveryInitBlock = uint64(block.number);
-        record.pendingRecoveryMode = RecoveryMode.EmailWorldID;
+        record.pendingRecoveryMode = RecoveryMode.EmailPersonhood;
 
         // ── Interactions ──────────────────────────────────────────────────────
         if (!verifier.verify(emailProof, emailPublicInputs))
@@ -242,20 +233,13 @@ contract SpectreRegistry {
         uint256 signal = uint256(
             keccak256(abi.encodePacked(agentOwner, newOwner, record.nonce))
         );
-        worldId.verifyProof(
-            worldIdRoot,
-            worldIdGroupId,
-            signal,
-            worldIdNullifier,
-            externalNullifier,
-            worldIdProof
-        );
+        personhood.verifyPersonhood(signal, personhoodNullifier, personhoodProof);
 
         emit RecoveryInitiated(
             agentOwner,
             newOwner,
             uint64(block.number) + record.timelockBlocks,
-            RecoveryMode.EmailWorldID
+            RecoveryMode.EmailPersonhood
         );
     }
 
@@ -379,15 +363,15 @@ contract SpectreRegistry {
         if (record.pendingOwner == address(0)) revert NoRecoveryPending();
         if (msg.sender != record.owner) revert NotOwner();
 
-        // S4: release the World ID nullifier staged by an EmailWorldID
+        // S4: release the personhood nullifier staged by an EmailPersonhood
         // recovery. Cancel is owner-only, so only the legitimate owner can
         // trigger this release — an attacker cannot abuse it to recycle a
         // nullifier. Without this, a single cancelled attempt would burn the
-        // owner's World ID identity and permanently brick EmailWorldID
-        // recovery for it. Backup/Social leave pendingWorldIdNullifier == 0.
-        if (record.pendingWorldIdNullifier != 0) {
-            delete usedNullifiers[record.pendingWorldIdNullifier];
-            record.pendingWorldIdNullifier = 0;
+        // identity's nullifier forever and brick EmailPersonhood recovery for
+        // it. Backup/Social leave pendingPersonhoodNullifier == 0.
+        if (record.pendingPersonhoodNullifier != 0) {
+            delete usedNullifiers[record.pendingPersonhoodNullifier];
+            record.pendingPersonhoodNullifier = 0;
         }
 
         record.pendingOwner = address(0);
@@ -413,7 +397,7 @@ contract SpectreRegistry {
         record.pendingRecoveryMode = RecoveryMode.None;
         // Recovery finalized: drop the staged pointer but KEEP
         // usedNullifiers[...] = true so the nullifier stays permanently spent.
-        record.pendingWorldIdNullifier = 0;
+        record.pendingPersonhoodNullifier = 0;
         record.nonce += 1;
 
         emit RecoveryExecuted(agentOwner, newOwner);

@@ -3,6 +3,8 @@ pragma solidity ^0.8.21;
 
 import "forge-std/Test.sol";
 import "../src/SpectreRegistry.sol";
+import "../src/IPersonhoodVerifier.sol";
+import "../src/WorldIDPersonhoodAdapter.sol";
 
 /// @dev Stub verifier — always returns true.
 contract MockVerifier {
@@ -18,13 +20,11 @@ contract MockWorldID {
     ) external pure {}
 }
 
-/// @dev World ID mock that enforces checks-effects-interactions (S5).
-///      IWorldID.verifyProof is `view`, so the registry STATICCALLs it — the
-///      probe can only read. It reverts if, at the moment the external World
-///      ID call runs, the nullifier is not already reserved and the recovery
-///      not already staged. A CEI regression (effects after the call) makes
-///      any initiateRecovery through this probe revert.
-contract OrderingProbeWorldID {
+/// @dev Personhood verifier that enforces checks-effects-interactions (S5).
+///      Reverts unless, at the moment the external personhood call runs, the
+///      nullifier is already reserved and the recovery already staged. A CEI
+///      regression makes any initiateRecovery through this probe revert.
+contract OrderingProbePersonhood is IPersonhoodVerifier {
     SpectreRegistry public reg;
     address public agent;
     uint256 public nullifier;
@@ -33,14 +33,14 @@ contract OrderingProbeWorldID {
         reg = r; agent = a; nullifier = n;
     }
 
-    function verifyProof(
-        uint256, uint256, uint256, uint256, uint256, uint256[8] calldata
-    ) external view {
+    function verifyPersonhood(
+        uint256, uint256, bytes calldata
+    ) external view override {
         SpectreRegistry.AgentRecord memory rec = reg.getRecord(agent);
         require(
             reg.usedNullifiers(nullifier) &&
                 rec.pendingOwner != address(0) &&
-                rec.pendingWorldIdNullifier == nullifier,
+                rec.pendingPersonhoodNullifier == nullifier,
             "S5: effects must precede interactions"
         );
     }
@@ -59,10 +59,11 @@ contract DenyAllDKIMRegistry {
 }
 
 contract SpectreRegistryTest is Test {
-    SpectreRegistry  registry;
-    MockVerifier     mockVerifier;
-    MockWorldID      mockWorldId;
-    MockDKIMRegistry mockDkim;
+    SpectreRegistry            registry;
+    MockVerifier               mockVerifier;
+    MockWorldID                mockWorldId;
+    WorldIDPersonhoodAdapter   personhood;
+    MockDKIMRegistry           mockDkim;
 
     address owner    = address(0x1);
     address newOwner = address(0x2);
@@ -78,16 +79,21 @@ contract SpectreRegistryTest is Test {
     function setUp() public {
         mockVerifier = new MockVerifier();
         mockWorldId  = new MockWorldID();
+        personhood   = new WorldIDPersonhoodAdapter(address(mockWorldId), 1, 1);
         mockDkim     = new MockDKIMRegistry();
         registry     = new SpectreRegistry(
             address(mockVerifier),
-            address(mockWorldId),
+            address(personhood),
             address(mockDkim),
-            1,
-            1,
             DEFAULT_TL
         );
         inputs = _buildInputs(emailHash, newOwner, 1);
+    }
+
+    /// Wrap the WorldID-shaped proof (root + uint256[8]) into the opaque
+    /// personhoodProof bytes the new initiateRecovery signature expects.
+    function _pp() internal view returns (bytes memory) {
+        return abi.encode(uint256(1), wIdProof);
     }
 
     /// Build the 70-field public-input array the contract now requires.
@@ -129,13 +135,13 @@ contract SpectreRegistryTest is Test {
         registry.registerWithCustomTimelock(emailHash, 5);
     }
 
-    // ── EmailWorldID recovery ────────────────────────────────────────────────
+    // ── EmailPersonhood recovery ────────────────────────────────────────────────
 
     function test_initiate_recovery() public {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         (bool pending, address pendingOwner,,) = registry.recoveryStatus(owner);
         assertTrue(pending);
@@ -146,7 +152,7 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         vm.prank(owner);
         registry.cancelRecovery(owner);
@@ -159,7 +165,7 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         vm.roll(block.number + 7201);
         registry.executeRecovery(owner);
@@ -173,7 +179,7 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         vm.expectRevert(SpectreRegistry.TimelockNotElapsed.selector);
         registry.executeRecovery(owner);
@@ -183,7 +189,7 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
         vm.roll(block.number + 7201);
         registry.executeRecovery(owner);
 
@@ -191,14 +197,14 @@ contract SpectreRegistryTest is Test {
         registry.register(keccak256("new@example.com"));
 
         vm.expectRevert(SpectreRegistry.NullifierAlreadyUsed.selector);
-        registry.initiateRecovery(newOwner, owner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(newOwner, owner, proof, inputs, 999, _pp());
     }
 
     function test_non_owner_cannot_cancel() public {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         vm.prank(address(0x3));
         vm.expectRevert(SpectreRegistry.NotOwner.selector);
@@ -429,22 +435,22 @@ contract SpectreRegistryTest is Test {
         registry.register(emailHash);
 
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        registry.initiateRecovery(owner, address(0), proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, address(0), proof, inputs, 999, _pp());
     }
 
     function test_initiate_revert_not_registered() public {
         vm.expectRevert(SpectreRegistry.NotRegistered.selector);
-        registry.initiateRecovery(address(0x99), newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(address(0x99), newOwner, proof, inputs, 999, _pp());
     }
 
     function test_initiate_revert_recovery_already_pending() public {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         vm.expectRevert(SpectreRegistry.RecoveryPending.selector);
-        registry.initiateRecovery(owner, address(0x5), proof, inputs, 1, 888, wIdProof);
+        registry.initiateRecovery(owner, address(0x5), proof, inputs, 888, _pp());
     }
 
     function test_execute_revert_no_recovery_pending() public {
@@ -459,7 +465,7 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
         vm.roll(block.number + 7201);
         registry.executeRecovery(owner);
 
@@ -508,7 +514,7 @@ contract SpectreRegistryTest is Test {
         registry.register(emailHash);
         assertEq(registry.getRecord(owner).nonce, 1);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
         vm.roll(block.number + 7201);
         registry.executeRecovery(owner);
         assertEq(registry.getRecord(owner).nonce, 2);
@@ -518,7 +524,7 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         vm.prank(owner);
         registry.cancelRecovery(owner);
@@ -527,22 +533,22 @@ contract SpectreRegistryTest is Test {
 
     function test_constructor_revert_zero_verifier() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(0), address(mockWorldId), address(mockDkim), 1, 1, DEFAULT_TL);
+        new SpectreRegistry(address(0), address(personhood), address(mockDkim), DEFAULT_TL);
     }
 
-    function test_constructor_revert_zero_worldid() public {
+    function test_constructor_revert_zero_personhood() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(0), address(mockDkim), 1, 1, DEFAULT_TL);
+        new SpectreRegistry(address(mockVerifier), address(0), address(mockDkim), DEFAULT_TL);
     }
 
     function test_constructor_revert_zero_dkim_registry() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(mockWorldId), address(0), 1, 1, DEFAULT_TL);
+        new SpectreRegistry(address(mockVerifier), address(personhood), address(0), DEFAULT_TL);
     }
 
     function test_constructor_revert_zero_default_timelock() public {
         vm.expectRevert(SpectreRegistry.TimelockTooShort.selector);
-        new SpectreRegistry(address(mockVerifier), address(mockWorldId), address(mockDkim), 1, 1, 0);
+        new SpectreRegistry(address(mockVerifier), address(personhood), address(mockDkim), 0);
     }
 
     // ── A4: default timelock ─────────────────────────────────────────────────
@@ -581,7 +587,7 @@ contract SpectreRegistryTest is Test {
 
         bytes32[] memory bad = _buildInputs(keccak256("attacker@evil.com"), newOwner, 1);
         vm.expectRevert(SpectreRegistry.InvalidProof.selector);
-        registry.initiateRecovery(owner, newOwner, proof, bad, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, bad, 999, _pp());
     }
 
     function test_initiate_revert_wrong_new_owner_in_inputs() public {
@@ -591,7 +597,7 @@ contract SpectreRegistryTest is Test {
         // inputs claim new owner is 0xDEAD but the call passes newOwner
         bytes32[] memory bad = _buildInputs(emailHash, address(0xDEAD), 1);
         vm.expectRevert(SpectreRegistry.InvalidProof.selector);
-        registry.initiateRecovery(owner, newOwner, proof, bad, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, bad, 999, _pp());
     }
 
     function test_initiate_revert_wrong_nonce_in_inputs() public {
@@ -601,7 +607,7 @@ contract SpectreRegistryTest is Test {
         // record.nonce starts at 1; proof claims nonce 99
         bytes32[] memory bad = _buildInputs(emailHash, newOwner, 99);
         vm.expectRevert(SpectreRegistry.InvalidProof.selector);
-        registry.initiateRecovery(owner, newOwner, proof, bad, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, bad, 999, _pp());
     }
 
     function test_initiate_revert_wrong_input_length() public {
@@ -610,7 +616,7 @@ contract SpectreRegistryTest is Test {
 
         bytes32[] memory tooShort = new bytes32[](69);
         vm.expectRevert(SpectreRegistry.InvalidProof.selector);
-        registry.initiateRecovery(owner, newOwner, proof, tooShort, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, tooShort, 999, _pp());
     }
 
     function test_initiate_after_cancel_uses_new_nonce_binding() public {
@@ -618,18 +624,18 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
         vm.prank(owner);
         registry.cancelRecovery(owner);
         assertEq(registry.getRecord(owner).nonce, 2);
 
         // stale inputs (nonce=1) should now fail the binding check
         vm.expectRevert(SpectreRegistry.InvalidProof.selector);
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 1000, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 1000, _pp());
 
         // fresh inputs (nonce=2) succeed
         bytes32[] memory fresh = _buildInputs(emailHash, newOwner, 2);
-        registry.initiateRecovery(owner, newOwner, proof, fresh, 1, 1000, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, fresh, 1000, _pp());
         (bool pending,,,) = registry.recoveryStatus(owner);
         assertTrue(pending);
     }
@@ -641,10 +647,8 @@ contract SpectreRegistryTest is Test {
         DenyAllDKIMRegistry deny = new DenyAllDKIMRegistry();
         SpectreRegistry strict = new SpectreRegistry(
             address(mockVerifier),
-            address(mockWorldId),
+            address(personhood),
             address(deny),
-            1,
-            1,
             DEFAULT_TL
         );
 
@@ -653,7 +657,7 @@ contract SpectreRegistryTest is Test {
 
         bytes32[] memory pi = _buildInputs(emailHash, newOwner, 1);
         vm.expectRevert(SpectreRegistry.InvalidProof.selector);
-        strict.initiateRecovery(owner, newOwner, proof, pi, 1, 999, wIdProof);
+        strict.initiateRecovery(owner, newOwner, proof, pi, 999, _pp());
     }
 
     // ── S4: nullifier lifecycle (release on cancel) ──────────────────────────
@@ -662,29 +666,29 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         assertTrue(registry.usedNullifiers(999));
-        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 999);
+        assertEq(registry.getRecord(owner).pendingPersonhoodNullifier, 999);
     }
 
     function test_cancel_releases_nullifier() public {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         vm.prank(owner);
         registry.cancelRecovery(owner);
 
         // S4: the cancelled attempt must NOT permanently burn the nullifier.
         assertFalse(registry.usedNullifiers(999));
-        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 0);
+        assertEq(registry.getRecord(owner).pendingPersonhoodNullifier, 0);
 
         // Same World ID identity (same nullifier) can recover again — pre-fix
         // this reverted NullifierAlreadyUsed and bricked the mode forever.
         bytes32[] memory fresh = _buildInputs(emailHash, newOwner, 2);
-        registry.initiateRecovery(owner, newOwner, proof, fresh, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, fresh, 999, _pp());
         (bool pending,,,) = registry.recoveryStatus(owner);
         assertTrue(pending);
     }
@@ -693,13 +697,13 @@ contract SpectreRegistryTest is Test {
         vm.prank(owner);
         registry.register(emailHash);
 
-        registry.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
         vm.roll(block.number + 7201);
         registry.executeRecovery(owner);
 
         // Finalized recovery: nullifier stays spent, staged pointer cleared.
         assertTrue(registry.usedNullifiers(999));
-        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 0);
+        assertEq(registry.getRecord(owner).pendingPersonhoodNullifier, 0);
     }
 
     function test_backup_recovery_does_not_stage_nullifier() public {
@@ -714,7 +718,7 @@ contract SpectreRegistryTest is Test {
 
         // Non-Email modes never touch the nullifier; cancel must be a no-op
         // on it (the != 0 guard) and not revert.
-        assertEq(registry.getRecord(owner).pendingWorldIdNullifier, 0);
+        assertEq(registry.getRecord(owner).pendingPersonhoodNullifier, 0);
         vm.prank(owner);
         registry.cancelRecovery(owner);
         (bool pending,,,) = registry.recoveryStatus(owner);
@@ -723,24 +727,22 @@ contract SpectreRegistryTest is Test {
 
     // ── S5: checks-effects-interactions ordering ─────────────────────────────
 
-    function test_effects_applied_before_external_worldid_call() public {
-        OrderingProbeWorldID probe = new OrderingProbeWorldID();
+    function test_effects_applied_before_external_personhood_call() public {
+        OrderingProbePersonhood probe = new OrderingProbePersonhood();
         SpectreRegistry reg = new SpectreRegistry(
             address(mockVerifier),
             address(probe),
             address(mockDkim),
-            1,
-            1,
             DEFAULT_TL
         );
         probe.arm(reg, owner, 999);
 
         vm.prank(owner);
         reg.register(emailHash);
-        // The probe (running inside the external World ID staticcall) reverts
+        // The probe (running inside the external personhood staticcall) reverts
         // unless the nullifier is reserved and the recovery staged. A CEI
         // regression would make this initiate revert.
-        reg.initiateRecovery(owner, newOwner, proof, inputs, 1, 999, wIdProof);
+        reg.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
 
         (bool pending,,,) = reg.recoveryStatus(owner);
         assertTrue(pending);

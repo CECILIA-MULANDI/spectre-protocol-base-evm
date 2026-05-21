@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "../src/Verifier.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/DKIMRegistry.sol";
+import "../src/WorldIDPersonhoodAdapter.sol";
 
 /// @notice Deploys UltraVerifier, DKIMRegistry, then SpectreRegistry.
 ///
@@ -45,17 +46,23 @@ contract Deploy is Script {
         console.log("DKIMRegistry updater:        ", dkimRegistry.updater());
         console.log("DKIMRegistry timelock (sec): ", dkimRegistry.proposalTimelock());
 
-        // 3. Deploy SpectreRegistry
+        // 3. Deploy the personhood adapter (World ID v0)
+        WorldIDPersonhoodAdapter personhood = new WorldIDPersonhoodAdapter(
+            worldIdRouter,
+            worldIdGroupId,
+            externalNullifier
+        );
+        console.log("PersonhoodAdapter deployed:  ", address(personhood));
+        console.log("externalNullifier:           ", personhood.externalNullifier());
+
+        // 4. Deploy SpectreRegistry
         SpectreRegistry registry = new SpectreRegistry(
             address(verifier),
-            worldIdRouter,
+            address(personhood),
             address(dkimRegistry),
-            worldIdGroupId,
-            externalNullifier,
             defaultTimelock
         );
         console.log("SpectreRegistry deployed at: ", address(registry));
-        console.log("externalNullifier:           ", registry.externalNullifier());
         console.log("defaultTimelockBlocks:       ", registry.defaultTimelockBlocks());
 
         vm.stopBroadcast();

@@ -6,6 +6,7 @@ import "../src/Verifier.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/MockWorldID.sol";
 import "../src/DKIMRegistry.sol";
+import "../src/WorldIDPersonhoodAdapter.sol";
 
 /// @notice Deploys HonkVerifier + MockWorldID + DKIMRegistry + SpectreRegistry
 ///         for local / testnet E2E testing.
@@ -33,13 +34,16 @@ contract DeployMock is Script {
         console.log("DKIMRegistry deployed at:    ", address(dkimRegistry));
 
         // groupId = 1, externalNullifier = 1 (arbitrary — MockWorldID ignores proofs)
+        WorldIDPersonhoodAdapter personhood = new WorldIDPersonhoodAdapter(
+            address(mockWorldId), 1, 1
+        );
+        console.log("PersonhoodAdapter deployed:  ", address(personhood));
+
         // 100 blocks default+minimum — local/testnet only
         SpectreRegistry registry = new SpectreRegistry(
             address(verifier),
-            address(mockWorldId),
+            address(personhood),
             address(dkimRegistry),
-            1,
-            1,
             100
         );
         console.log("SpectreRegistry deployed at: ", address(registry));
