@@ -12,7 +12,7 @@ export type WorldIdProof = {
   proof: string[]; // uint256[8] as decimal strings
 };
 
-export type RecoveryMode = "EmailWorldID" | "Backup" | "Social";
+export type RecoveryMode = "EmailPersonhood" | "Backup" | "Social";
 
 export type RecoveryStatus = {
   pending: boolean;

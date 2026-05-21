@@ -18,7 +18,7 @@ export const REGISTRY_ABI = [
     stateMutability: "nonpayable",
   },
 
-  // ── EmailWorldID recovery ─────────────────────────────────────────────────
+  // ── EmailPersonhood recovery ──────────────────────────────────────────────
   {
     type: "function",
     name: "initiateRecovery",
@@ -27,9 +27,8 @@ export const REGISTRY_ABI = [
       { name: "newOwner", type: "address" },
       { name: "emailProof", type: "bytes" },
       { name: "emailPublicInputs", type: "bytes32[]" },
-      { name: "worldIdRoot", type: "uint256" },
-      { name: "worldIdNullifier", type: "uint256" },
-      { name: "worldIdProof", type: "uint256[8]" },
+      { name: "personhoodNullifier", type: "uint256" },
+      { name: "personhoodProof", type: "bytes" },
     ],
     outputs: [],
     stateMutability: "nonpayable",

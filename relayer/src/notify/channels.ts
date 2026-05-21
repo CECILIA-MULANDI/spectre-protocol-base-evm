@@ -10,7 +10,7 @@
  * Alert shape is defined by `buildAlert()` and consumed by the user's webhook.
  */
 
-const RECOVERY_MODE_NAMES = ["None", "EmailWorldID", "Social", "Backup"] as const;
+const RECOVERY_MODE_NAMES = ["None", "EmailPersonhood", "Social", "Backup"] as const;
 
 export type RecoveryAlert = {
   type: "RecoveryInitiated";

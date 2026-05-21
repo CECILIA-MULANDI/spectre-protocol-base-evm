@@ -1,6 +1,7 @@
 import {
   createPublicClient,
   createWalletClient,
+  encodeAbiParameters,
   http,
   sha256,
   stringToBytes,
@@ -17,7 +18,7 @@ import type {
   WorldIdProof,
 } from "../types.js";
 
-const RECOVERY_MODES = ["None", "EmailWorldID", "Social", "Backup"] as const;
+const RECOVERY_MODES = ["None", "EmailPersonhood", "Social", "Backup"] as const;
 
 export class RegistryClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,7 +74,8 @@ export class RegistryClient {
     emailPublicInputs: `0x${string}`[],
     worldIdProof: WorldIdProof
   ): Promise<Hash> {
-    const [root, nullifier, proof] = parseWorldIdProof(worldIdProof);
+    const { nullifier, personhoodProof } =
+      encodeWorldIdPersonhoodProof(worldIdProof);
 
     return this.walletClient.writeContract({
       address: this.registryAddress,
@@ -84,9 +86,8 @@ export class RegistryClient {
         newOwner,
         emailProof,
         emailPublicInputs,
-        root,
         nullifier,
-        proof,
+        personhoodProof,
       ],
       account: this.walletClient.account!,
       chain: this.walletClient.chain,
@@ -166,15 +167,21 @@ export class RegistryClient {
   }
 
   async getRecord(owner: Address): Promise<AgentRecord> {
-    const raw = await this.publicClient.readContract({
+    const raw = (await this.publicClient.readContract({
       address: this.registryAddress,
       abi: REGISTRY_ABI,
       functionName: "getRecord",
       args: [owner],
-    }) as {
-      emailHash: `0x${string}`; owner: Address; pendingOwner: Address;
-      timelockBlocks: bigint; recoveryInitBlock: bigint; nonce: bigint;
-      backupWallet: Address; guardianThreshold: number; guardianCount: number;
+    })) as {
+      emailHash: `0x${string}`;
+      owner: Address;
+      pendingOwner: Address;
+      timelockBlocks: bigint;
+      recoveryInitBlock: bigint;
+      nonce: bigint;
+      backupWallet: Address;
+      guardianThreshold: number;
+      guardianCount: number;
       pendingRecoveryMode: number;
     };
     return {
@@ -192,12 +199,12 @@ export class RegistryClient {
 
   async getRecoveryStatus(owner: Address): Promise<RecoveryStatus> {
     // viem returns a positional array for multi-output functions when ABI is typed as Abi
-    const raw = await this.publicClient.readContract({
+    const raw = (await this.publicClient.readContract({
       address: this.registryAddress,
       abi: REGISTRY_ABI,
       functionName: "recoveryStatus",
       args: [owner],
-    }) as [boolean, Address, bigint, number];
+    })) as [boolean, Address, bigint, number];
     return {
       pending: raw[0],
       pendingOwner: raw[1],
@@ -216,7 +223,10 @@ export class RegistryClient {
     return result as Address[];
   }
 
-  async getApprovalCount(agentOwner: Address, newOwner: Address): Promise<number> {
+  async getApprovalCount(
+    agentOwner: Address,
+    newOwner: Address
+  ): Promise<number> {
     const result = await this.publicClient.readContract({
       address: this.registryAddress,
       abi: REGISTRY_ABI,
@@ -227,7 +237,7 @@ export class RegistryClient {
   }
 
   async waitForTx(hash: Hash): Promise<TransactionReceipt> {
-    return this.publicClient.waitForTransactionReceipt({ hash })
+    return this.publicClient.waitForTransactionReceipt({ hash });
   }
 
   /// SHA-256 of the lowercased, trimmed email address.
@@ -238,24 +248,21 @@ export class RegistryClient {
   }
 }
 
-function parseWorldIdProof(
+/// Encode a World ID proof into the opaque bytes the on-chain
+/// WorldIDPersonhoodAdapter expects: abi.encode(uint256 root, uint256[8] proof).
+/// The `nullifier` is returned separately because SpectreRegistry tracks it
+/// in `usedNullifiers` outside the adapter call.
+function encodeWorldIdPersonhoodProof(
   w: WorldIdProof
-): [
-  bigint,
-  bigint,
-  readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint]
-] {
+): { nullifier: bigint; personhoodProof: `0x${string}` } {
   const root = BigInt(w.root);
   const nullifier = BigInt(w.nullifier_hash);
   const proof = w.proof.map((p) => BigInt(p)) as unknown as readonly [
-    bigint,
-    bigint,
-    bigint,
-    bigint,
-    bigint,
-    bigint,
-    bigint,
-    bigint
+    bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint
   ];
-  return [root, nullifier, proof];
+  const personhoodProof = encodeAbiParameters(
+    [{ type: "uint256" }, { type: "uint256[8]" }],
+    [root, proof]
+  );
+  return { nullifier, personhoodProof };
 }

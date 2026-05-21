@@ -19,7 +19,7 @@ const record = await client.readContract({ address: registry, abi: REGISTRY_ABI,
 const guardians = await client.readContract({ address: registry, abi: REGISTRY_ABI, functionName: "getGuardians", args: [owner] }) as string[];
 const [pending, pendingOwner, executeAfterBlock, mode] = await client.readContract({ address: registry, abi: REGISTRY_ABI, functionName: "recoveryStatus", args: [owner] }) as any;
 
-const MODES = ["None", "EmailWorldID", "Social", "Backup"];
+const MODES = ["None", "EmailPersonhood", "Social", "Backup"];
 
 console.log("=== Agent Record ===");
 console.log("owner:             ", record.owner);

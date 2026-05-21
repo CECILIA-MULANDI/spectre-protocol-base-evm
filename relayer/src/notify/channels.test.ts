@@ -14,7 +14,7 @@ test("buildAlert produces the expected serializable shape", () => {
     chainId: 84532,
   });
   assert.equal(alert.type, "RecoveryInitiated");
-  assert.equal(alert.mode, "EmailWorldID");
+  assert.equal(alert.mode, "EmailPersonhood");
   // bigint fields are stringified — matters because JSON.stringify can't handle bigint
   assert.equal(alert.executeAfterBlock, "9000000");
   assert.equal(alert.blockNumber, "123");

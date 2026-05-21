@@ -8,6 +8,7 @@
  *   4. Call SpectreRegistry.initiateRecovery() with email proof + World ID proof
  */
 import { readFile } from "fs/promises";
+import { encodeAbiParameters } from "viem";
 import { loadConfig } from "./config.js";
 import { buildClients } from "./network.js";
 import { REGISTRY_ABI } from "./abi.js";
@@ -75,6 +76,17 @@ const publicInputs = Array.from(
 // Load World ID proof (generated externally via World ID SDK or World App)
 const worldId = JSON.parse(await readFile(worldIdPath, "utf-8"));
 
+// Encode the World ID proof into the opaque bytes the WorldIDPersonhoodAdapter
+// decodes: abi.encode(uint256 root, uint256[8] proof). The nullifier is passed
+// alongside because SpectreRegistry tracks it outside the adapter call.
+const wIdProof = (worldId.proof as string[]).map((p) => BigInt(p)) as unknown as readonly [
+  bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint
+];
+const personhoodProof = encodeAbiParameters(
+  [{ type: "uint256" }, { type: "uint256[8]" }],
+  [BigInt(worldId.root), wIdProof]
+);
+
 const hash = await walletClient.writeContract({
   address: config.registryAddress,
   abi: REGISTRY_ABI,
@@ -84,18 +96,8 @@ const hash = await walletClient.writeContract({
     newOwner as `0x${string}`,
     proofBytes,
     publicInputs,
-    BigInt(worldId.root),
     BigInt(worldId.nullifier_hash),
-    worldId.proof as [
-      bigint,
-      bigint,
-      bigint,
-      bigint,
-      bigint,
-      bigint,
-      bigint,
-      bigint
-    ],
+    personhoodProof,
   ],
 });
 

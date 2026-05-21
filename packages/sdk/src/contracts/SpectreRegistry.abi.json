@@ -8,7 +8,7 @@
         "internalType": "address"
       },
       {
-        "name": "_worldId",
+        "name": "_personhood",
         "type": "address",
         "internalType": "address"
       },
@@ -16,16 +16,6 @@
         "name": "_dkimRegistry",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "_worldIdGroupId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "_externalNullifier",
-        "type": "uint256",
-        "internalType": "uint256"
       },
       {
         "name": "_defaultTimelockBlocks",
@@ -139,19 +129,6 @@
   },
   {
     "type": "function",
-    "name": "externalNullifier",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "getApprovalCount",
     "inputs": [
       {
@@ -258,6 +235,11 @@
             "name": "pendingRecoveryMode",
             "type": "uint8",
             "internalType": "enum SpectreRegistry.RecoveryMode"
+          },
+          {
+            "name": "pendingPersonhoodNullifier",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -331,19 +313,14 @@
         "internalType": "bytes32[]"
       },
       {
-        "name": "worldIdRoot",
+        "name": "personhoodNullifier",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "worldIdNullifier",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "worldIdProof",
-        "type": "uint256[8]",
-        "internalType": "uint256[8]"
+        "name": "personhoodProof",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -369,6 +346,19 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "personhood",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPersonhoodVerifier"
       }
     ],
     "stateMutability": "view"
@@ -433,6 +423,11 @@
         "name": "pendingRecoveryMode",
         "type": "uint8",
         "internalType": "enum SpectreRegistry.RecoveryMode"
+      },
+      {
+        "name": "pendingPersonhoodNullifier",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -561,32 +556,6 @@
         "name": "",
         "type": "address",
         "internalType": "contract IUltraVerifier"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "worldId",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IWorldID"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "worldIdGroupId",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
