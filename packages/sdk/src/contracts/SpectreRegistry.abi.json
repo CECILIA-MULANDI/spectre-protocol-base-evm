@@ -8,7 +8,12 @@
         "internalType": "address"
       },
       {
-        "name": "_personhood",
+        "name": "_defaultPersonhood",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_personhoodRegistry",
         "type": "address",
         "internalType": "address"
       },
@@ -87,6 +92,19 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "defaultPersonhood",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPersonhoodVerifier"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -237,6 +255,11 @@
             "internalType": "enum SpectreRegistry.RecoveryMode"
           },
           {
+            "name": "personhoodAdapter",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
             "name": "pendingPersonhoodNullifier",
             "type": "uint256",
             "internalType": "uint256"
@@ -352,13 +375,13 @@
   },
   {
     "type": "function",
-    "name": "personhood",
+    "name": "personhoodRegistry",
     "inputs": [],
     "outputs": [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IPersonhoodVerifier"
+        "internalType": "contract IPersonhoodRegistry"
       }
     ],
     "stateMutability": "view"
@@ -425,6 +448,11 @@
         "internalType": "enum SpectreRegistry.RecoveryMode"
       },
       {
+        "name": "personhoodAdapter",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "pendingPersonhoodNullifier",
         "type": "uint256",
         "internalType": "uint256"
@@ -474,6 +502,29 @@
         "name": "emailHash",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerWith",
+    "inputs": [
+      {
+        "name": "emailHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "adapter",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "timelockBlocks",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "outputs": [],
@@ -716,6 +767,11 @@
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AdapterNotApproved",
+    "inputs": []
   },
   {
     "type": "error",

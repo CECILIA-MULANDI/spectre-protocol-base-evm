@@ -17,6 +17,17 @@ export const REGISTRY_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "registerWith",
+    inputs: [
+      { name: "emailHash", type: "bytes32" },
+      { name: "adapter", type: "address" },
+      { name: "timelockBlocks", type: "uint64" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
 
   // ── EmailPersonhood recovery ──────────────────────────────────────────────
   {
@@ -111,6 +122,7 @@ export const REGISTRY_ABI = [
           { name: "guardianThreshold", type: "uint8" },
           { name: "guardianCount", type: "uint8" },
           { name: "pendingRecoveryMode", type: "uint8" },
+          { name: "personhoodAdapter", type: "address" },
         ],
       },
     ],

@@ -67,6 +67,21 @@ export class RegistryClient {
     });
   }
 
+  async registerWith(
+    emailHash: `0x${string}`,
+    adapter: Address,
+    timelockBlocks: bigint
+  ): Promise<Hash> {
+    return this.walletClient.writeContract({
+      address: this.registryAddress,
+      abi: REGISTRY_ABI,
+      functionName: "registerWith",
+      args: [emailHash, adapter, timelockBlocks],
+      account: this.walletClient.account!,
+      chain: this.walletClient.chain,
+    });
+  }
+
   async initiateRecovery(
     agentOwner: Address,
     newOwner: Address,
@@ -183,6 +198,7 @@ export class RegistryClient {
       guardianThreshold: number;
       guardianCount: number;
       pendingRecoveryMode: number;
+      personhoodAdapter: Address;
     };
     return {
       emailHash: raw.emailHash,
@@ -194,6 +210,7 @@ export class RegistryClient {
       backupWallet: raw.backupWallet,
       guardianThreshold: raw.guardianThreshold,
       guardianCount: raw.guardianCount,
+      personhoodAdapter: raw.personhoodAdapter,
     };
   }
 

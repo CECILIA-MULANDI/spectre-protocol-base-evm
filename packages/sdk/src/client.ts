@@ -55,6 +55,20 @@ export class SpectreClient {
     return { hash, receipt, emailHash };
   }
 
+  /// Register choosing a specific personhood adapter (must be the protocol
+  /// default or approved in the PersonhoodRegistry). Pass the protocol default
+  /// timelock if you don't want a longer window.
+  async registerWithAdapter(
+    email: string,
+    adapter: Address,
+    timelockBlocks: bigint
+  ) {
+    const emailHash = this.registry.computeEmailHash(email);
+    const hash = await this.registry.registerWith(emailHash, adapter, timelockBlocks);
+    const receipt = await this.registry.waitForTx(hash);
+    return { hash, receipt, emailHash };
+  }
+
   // Email + World ID recovery
 
   async initiateEmailRecovery(params: {

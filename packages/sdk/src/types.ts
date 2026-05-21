@@ -31,6 +31,7 @@ export type AgentRecord = {
   backupWallet: Address;
   guardianThreshold: number;
   guardianCount: number;
+  personhoodAdapter: Address;
 };
 
 export type TxResult = {

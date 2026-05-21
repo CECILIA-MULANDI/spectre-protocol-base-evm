@@ -29,6 +29,7 @@ console.log("nonce:             ", record.nonce.toString());
 console.log("backupWallet:      ", record.backupWallet);
 console.log("guardianThreshold: ", record.guardianThreshold);
 console.log("guardianCount:     ", record.guardianCount);
+console.log("personhoodAdapter: ", record.personhoodAdapter);
 console.log("\n=== Recovery Status ===");
 console.log("pending:           ", pending);
 console.log("pendingOwner:      ", pendingOwner);
