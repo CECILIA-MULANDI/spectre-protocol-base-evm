@@ -6,6 +6,7 @@ import "../src/Verifier.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/DKIMRegistry.sol";
 import "../src/WorldIDPersonhoodAdapter.sol";
+import "../src/PersonhoodRegistry.sol";
 
 /// @notice Deploys UltraVerifier, DKIMRegistry, then SpectreRegistry.
 ///
@@ -55,10 +56,20 @@ contract Deploy is Script {
         console.log("PersonhoodAdapter deployed:  ", address(personhood));
         console.log("externalNullifier:           ", personhood.externalNullifier());
 
-        // 4. Deploy SpectreRegistry
+        // 4. Deploy the personhood-adapter allowlist (additional adapters are
+        //    governed; the default adapter above is a deploy-time trust anchor).
+        //    Reuses the DKIM updater + timelock for the preview.
+        PersonhoodRegistry personhoodRegistry = new PersonhoodRegistry(
+            dkimUpdater,
+            dkimProposalTimelock
+        );
+        console.log("PersonhoodRegistry deployed: ", address(personhoodRegistry));
+
+        // 5. Deploy SpectreRegistry
         SpectreRegistry registry = new SpectreRegistry(
             address(verifier),
             address(personhood),
+            address(personhoodRegistry),
             address(dkimRegistry),
             defaultTimelock
         );

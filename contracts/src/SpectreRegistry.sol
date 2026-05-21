@@ -14,6 +14,10 @@ interface IDKIMRegistry {
     function isKnown(bytes32 keyHash) external view returns (bool);
 }
 
+interface IPersonhoodRegistry {
+    function isApproved(address adapter) external view returns (bool);
+}
+
 /// @title SpectreRegistry
 /// @notice ZK key recovery protocol for AI agents.
 ///         Supports three recovery modes:
@@ -39,6 +43,7 @@ contract SpectreRegistry {
     error InvalidEmailHash();
     error InvalidProof();
     error NullifierAlreadyUsed();
+    error AdapterNotApproved();
     error TimelockTooShort();
     error NotOwner();
     error ZeroAddress();
@@ -87,6 +92,9 @@ contract SpectreRegistry {
         uint8 guardianCount;
         // which mode triggered the current pending recovery
         RecoveryMode pendingRecoveryMode;
+        // personhood adapter this agent recovers through; the protocol default
+        // unless a different approved adapter was chosen at register time
+        address personhoodAdapter;
         // Personhood nullifier staged with the current pending EmailPersonhood
         // recovery; zero unless one is in flight. Stored so cancelRecovery can
         // release it (S4) — without this, a cancelled attempt would burn the
@@ -123,7 +131,8 @@ contract SpectreRegistry {
 
     // External contracts
     IUltraVerifier public immutable verifier;
-    IPersonhoodVerifier public immutable personhood;
+    IPersonhoodVerifier public immutable defaultPersonhood;
+    IPersonhoodRegistry public immutable personhoodRegistry;
     IDKIMRegistry public immutable dkimRegistry;
 
     // Default timelock — set per deployment, immutable.
@@ -132,18 +141,21 @@ contract SpectreRegistry {
 
     constructor(
         address _verifier,
-        address _personhood,
+        address _defaultPersonhood,
+        address _personhoodRegistry,
         address _dkimRegistry,
         uint64 _defaultTimelockBlocks
     ) {
         if (
             _verifier == address(0) ||
-            _personhood == address(0) ||
+            _defaultPersonhood == address(0) ||
+            _personhoodRegistry == address(0) ||
             _dkimRegistry == address(0)
         ) revert ZeroAddress();
         if (_defaultTimelockBlocks == 0) revert TimelockTooShort();
         verifier = IUltraVerifier(_verifier);
-        personhood = IPersonhoodVerifier(_personhood);
+        defaultPersonhood = IPersonhoodVerifier(_defaultPersonhood);
+        personhoodRegistry = IPersonhoodRegistry(_personhoodRegistry);
         dkimRegistry = IDKIMRegistry(_dkimRegistry);
         defaultTimelockBlocks = _defaultTimelockBlocks;
     }
@@ -151,7 +163,7 @@ contract SpectreRegistry {
     /// @notice Register an agent recovery config using the protocol's default timelock.
     /// @param emailHash SHA256 of the owner's recovery email address.
     function register(bytes32 emailHash) external {
-        _register(emailHash, defaultTimelockBlocks);
+        _register(emailHash, defaultTimelockBlocks, address(defaultPersonhood));
     }
 
     /// @notice Register an agent with a longer-than-default timelock.
@@ -159,10 +171,36 @@ contract SpectreRegistry {
     /// @param timelockBlocks Cancel window in blocks; must be ≥ defaultTimelockBlocks.
     function registerWithCustomTimelock(bytes32 emailHash, uint64 timelockBlocks) external {
         if (timelockBlocks < defaultTimelockBlocks) revert TimelockTooShort();
-        _register(emailHash, timelockBlocks);
+        _register(emailHash, timelockBlocks, address(defaultPersonhood));
     }
 
-    function _register(bytes32 emailHash, uint64 timelockBlocks) internal {
+    /// @notice Register choosing a specific personhood adapter. The adapter must
+    ///         be the protocol default or currently approved in PersonhoodRegistry.
+    function registerWith(
+        bytes32 emailHash,
+        address adapter,
+        uint64 timelockBlocks
+    ) external {
+        if (timelockBlocks < defaultTimelockBlocks) revert TimelockTooShort();
+        _requireApprovedAdapter(adapter);
+        _register(emailHash, timelockBlocks, adapter);
+    }
+
+    /// @dev The default adapter is always valid (a deploy-time trust anchor,
+    ///      like the verifier); any other must be currently approved.
+    function _requireApprovedAdapter(address adapter) internal view {
+        if (adapter == address(0)) revert ZeroAddress();
+        if (
+            adapter != address(defaultPersonhood) &&
+            !personhoodRegistry.isApproved(adapter)
+        ) revert AdapterNotApproved();
+    }
+
+    function _register(
+        bytes32 emailHash,
+        uint64 timelockBlocks,
+        address adapter
+    ) internal {
         if (records[msg.sender].owner != address(0)) revert AlreadyRegistered();
         if (emailHash == bytes32(0)) revert InvalidEmailHash();
 
@@ -177,6 +215,7 @@ contract SpectreRegistry {
             guardianThreshold: 0,
             guardianCount: 0,
             pendingRecoveryMode: RecoveryMode.None,
+            personhoodAdapter: adapter,
             pendingPersonhoodNullifier: 0
         });
 
@@ -233,7 +272,19 @@ contract SpectreRegistry {
         uint256 signal = uint256(
             keccak256(abi.encodePacked(agentOwner, newOwner, record.nonce))
         );
-        personhood.verifyPersonhood(signal, personhoodNullifier, personhoodProof);
+        // Dispatch to the agent's chosen personhood adapter. The default is
+        // always valid; a non-default must still be approved (revocation of a
+        // compromised adapter blocks recovery, mirroring DKIM revocation).
+        address adapter = record.personhoodAdapter;
+        if (
+            adapter != address(defaultPersonhood) &&
+            !personhoodRegistry.isApproved(adapter)
+        ) revert AdapterNotApproved();
+        IPersonhoodVerifier(adapter).verifyPersonhood(
+            signal,
+            personhoodNullifier,
+            personhoodProof
+        );
 
         emit RecoveryInitiated(
             agentOwner,

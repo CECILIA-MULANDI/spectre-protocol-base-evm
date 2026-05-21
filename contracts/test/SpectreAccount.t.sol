@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/SpectreAccount.sol";
 import "../src/WorldIDPersonhoodAdapter.sol";
+import "../src/PersonhoodRegistry.sol";
 
 contract MockVerifier {
     function verify(bytes calldata, bytes32[] calldata) external pure returns (bool) {
@@ -55,9 +56,12 @@ contract SpectreAccountTest is Test {
     function setUp() public {
         WorldIDPersonhoodAdapter personhood =
             new WorldIDPersonhoodAdapter(address(new MockWorldID()), 1, 1);
+        PersonhoodRegistry personhoodReg =
+            new PersonhoodRegistry(address(this), 1 days);
         registry = new SpectreRegistry(
             address(new MockVerifier()),
             address(personhood),
+            address(personhoodReg),
             address(new MockDKIMRegistry()),
             TIMELOCK
         );

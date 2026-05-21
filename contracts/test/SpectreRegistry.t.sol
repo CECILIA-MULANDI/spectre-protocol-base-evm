@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/IPersonhoodVerifier.sol";
 import "../src/WorldIDPersonhoodAdapter.sol";
+import "../src/PersonhoodRegistry.sol";
 
 /// @dev Stub verifier — always returns true.
 contract MockVerifier {
@@ -63,6 +64,7 @@ contract SpectreRegistryTest is Test {
     MockVerifier               mockVerifier;
     MockWorldID                mockWorldId;
     WorldIDPersonhoodAdapter   personhood;
+    PersonhoodRegistry         personhoodReg;
     MockDKIMRegistry           mockDkim;
 
     address owner    = address(0x1);
@@ -77,17 +79,26 @@ contract SpectreRegistryTest is Test {
     uint256[8] wIdProof;
 
     function setUp() public {
-        mockVerifier = new MockVerifier();
-        mockWorldId  = new MockWorldID();
-        personhood   = new WorldIDPersonhoodAdapter(address(mockWorldId), 1, 1);
-        mockDkim     = new MockDKIMRegistry();
-        registry     = new SpectreRegistry(
+        mockVerifier  = new MockVerifier();
+        mockWorldId   = new MockWorldID();
+        personhood    = new WorldIDPersonhoodAdapter(address(mockWorldId), 1, 1);
+        personhoodReg = new PersonhoodRegistry(address(this), 1 days);
+        mockDkim      = new MockDKIMRegistry();
+        registry      = new SpectreRegistry(
             address(mockVerifier),
             address(personhood),
+            address(personhoodReg),
             address(mockDkim),
             DEFAULT_TL
         );
         inputs = _buildInputs(emailHash, newOwner, 1);
+    }
+
+    /// Propose+confirm an extra adapter (this test contract is the updater).
+    function _approveAdapter(address adapter) internal {
+        personhoodReg.propose(adapter);
+        vm.warp(block.timestamp + 1 days);
+        personhoodReg.confirm(adapter);
     }
 
     /// Wrap the WorldID-shaped proof (root + uint256[8]) into the opaque
@@ -533,22 +544,27 @@ contract SpectreRegistryTest is Test {
 
     function test_constructor_revert_zero_verifier() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(0), address(personhood), address(mockDkim), DEFAULT_TL);
+        new SpectreRegistry(address(0), address(personhood), address(personhoodReg), address(mockDkim), DEFAULT_TL);
     }
 
     function test_constructor_revert_zero_personhood() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(0), address(mockDkim), DEFAULT_TL);
+        new SpectreRegistry(address(mockVerifier), address(0), address(personhoodReg), address(mockDkim), DEFAULT_TL);
+    }
+
+    function test_constructor_revert_zero_personhood_registry() public {
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        new SpectreRegistry(address(mockVerifier), address(personhood), address(0), address(mockDkim), DEFAULT_TL);
     }
 
     function test_constructor_revert_zero_dkim_registry() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(personhood), address(0), DEFAULT_TL);
+        new SpectreRegistry(address(mockVerifier), address(personhood), address(personhoodReg), address(0), DEFAULT_TL);
     }
 
     function test_constructor_revert_zero_default_timelock() public {
         vm.expectRevert(SpectreRegistry.TimelockTooShort.selector);
-        new SpectreRegistry(address(mockVerifier), address(personhood), address(mockDkim), 0);
+        new SpectreRegistry(address(mockVerifier), address(personhood), address(personhoodReg), address(mockDkim), 0);
     }
 
     // ── A4: default timelock ─────────────────────────────────────────────────
@@ -648,6 +664,7 @@ contract SpectreRegistryTest is Test {
         SpectreRegistry strict = new SpectreRegistry(
             address(mockVerifier),
             address(personhood),
+            address(personhoodReg),
             address(deny),
             DEFAULT_TL
         );
@@ -732,6 +749,7 @@ contract SpectreRegistryTest is Test {
         SpectreRegistry reg = new SpectreRegistry(
             address(mockVerifier),
             address(probe),
+            address(personhoodReg),
             address(mockDkim),
             DEFAULT_TL
         );
@@ -746,5 +764,60 @@ contract SpectreRegistryTest is Test {
 
         (bool pending,,,) = reg.recoveryStatus(owner);
         assertTrue(pending);
+    }
+
+    // ── Multi-adapter ─────────────────────────────────────────────────────────
+
+    function test_register_records_default_adapter() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+        assertEq(registry.getRecord(owner).personhoodAdapter, address(personhood));
+    }
+
+    function test_registerWith_default_adapter_ok_without_allowlist() public {
+        // The default adapter is always valid even though it's not allowlisted.
+        vm.prank(owner);
+        registry.registerWith(emailHash, address(personhood), DEFAULT_TL);
+        assertEq(registry.getRecord(owner).personhoodAdapter, address(personhood));
+    }
+
+    function test_registerWith_approved_adapter() public {
+        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        _approveAdapter(address(alt));
+
+        vm.prank(owner);
+        registry.registerWith(emailHash, address(alt), DEFAULT_TL);
+        assertEq(registry.getRecord(owner).personhoodAdapter, address(alt));
+    }
+
+    function test_registerWith_unapproved_adapter_reverts() public {
+        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        vm.prank(owner);
+        vm.expectRevert(SpectreRegistry.AdapterNotApproved.selector);
+        registry.registerWith(emailHash, address(alt), DEFAULT_TL);
+    }
+
+    function test_initiate_dispatches_to_agent_adapter() public {
+        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        _approveAdapter(address(alt));
+        vm.prank(owner);
+        registry.registerWith(emailHash, address(alt), DEFAULT_TL);
+
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
+        (bool pending,,,) = registry.recoveryStatus(owner);
+        assertTrue(pending);
+    }
+
+    function test_initiate_reverts_when_agent_adapter_revoked() public {
+        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        _approveAdapter(address(alt));
+        vm.prank(owner);
+        registry.registerWith(emailHash, address(alt), DEFAULT_TL);
+
+        // The adapter the agent registered with is later revoked.
+        personhoodReg.revoke(address(alt));
+
+        vm.expectRevert(SpectreRegistry.AdapterNotApproved.selector);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
     }
 }
