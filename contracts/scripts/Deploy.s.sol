@@ -7,6 +7,7 @@ import "../src/SpectreRegistry.sol";
 import "../src/DKIMRegistry.sol";
 import "../src/WorldIDPersonhoodAdapter.sol";
 import "../src/PersonhoodRegistry.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 /// @notice Deploys UltraVerifier, DKIMRegistry, then SpectreRegistry.
 ///
@@ -65,15 +66,37 @@ contract Deploy is Script {
         );
         console.log("PersonhoodRegistry deployed: ", address(personhoodRegistry));
 
-        // 5. Deploy SpectreRegistry
-        SpectreRegistry registry = new SpectreRegistry(
-            address(verifier),
-            address(personhood),
-            address(personhoodRegistry),
-            address(dkimRegistry),
-            defaultTimelock
+        // 5. Deploy SpectreRegistry implementation + Transparent proxy.
+        //    Governance roles default to the deployer (testnet). For mainnet,
+        //    set SPECTRE_OWNER / PAUSE_GUARDIAN / PROXY_ADMIN_OWNER to a
+        //    multisig/timelock — no code change, just env vars.
+        address deployer        = vm.addr(deployerKey);
+        address spectreOwner    = vm.envOr("SPECTRE_OWNER", deployer);
+        address pauseGuardian   = vm.envOr("PAUSE_GUARDIAN", deployer);
+        address proxyAdminOwner = vm.envOr("PROXY_ADMIN_OWNER", deployer);
+
+        SpectreRegistry impl = new SpectreRegistry();
+        bytes memory initData = abi.encodeCall(
+            SpectreRegistry.initialize,
+            (
+                spectreOwner,
+                pauseGuardian,
+                address(verifier),
+                address(personhood),
+                address(personhoodRegistry),
+                address(dkimRegistry),
+                defaultTimelock
+            )
         );
-        console.log("SpectreRegistry deployed at: ", address(registry));
+        TransparentUpgradeableProxy proxy =
+            new TransparentUpgradeableProxy(address(impl), proxyAdminOwner, initData);
+        SpectreRegistry registry = SpectreRegistry(address(proxy));
+
+        console.log("SpectreRegistry impl at:     ", address(impl));
+        console.log("SpectreRegistry (proxy) at:  ", address(registry));
+        console.log("  owner:                     ", spectreOwner);
+        console.log("  pauseGuardian:             ", pauseGuardian);
+        console.log("  proxyAdminOwner:           ", proxyAdminOwner);
         console.log("defaultTimelockBlocks:       ", registry.defaultTimelockBlocks());
 
         vm.stopBroadcast();

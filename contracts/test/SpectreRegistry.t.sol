@@ -6,6 +6,9 @@ import "../src/SpectreRegistry.sol";
 import "../src/IPersonhoodVerifier.sol";
 import "../src/WorldIDPersonhoodAdapter.sol";
 import "../src/PersonhoodRegistry.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /// @dev Stub verifier — always returns true.
 contract MockVerifier {
@@ -60,6 +63,7 @@ contract DenyAllDKIMRegistry {
 }
 
 contract SpectreRegistryTest is Test {
+    SpectreRegistry            implementation;
     SpectreRegistry            registry;
     MockVerifier               mockVerifier;
     MockWorldID                mockWorldId;
@@ -84,7 +88,10 @@ contract SpectreRegistryTest is Test {
         personhood    = new WorldIDPersonhoodAdapter(address(mockWorldId), 1, 1);
         personhoodReg = new PersonhoodRegistry(address(this), 1 days);
         mockDkim      = new MockDKIMRegistry();
-        registry      = new SpectreRegistry(
+        implementation = new SpectreRegistry();
+        registry      = _deployRegistry(
+            address(this),
+            address(this),
             address(mockVerifier),
             address(personhood),
             address(personhoodReg),
@@ -92,6 +99,23 @@ contract SpectreRegistryTest is Test {
             DEFAULT_TL
         );
         inputs = _buildInputs(emailHash, newOwner, 1);
+    }
+
+    /// Deploy SpectreRegistry behind an ERC1967 proxy (runs initialize).
+    function _deployRegistry(
+        address owner_,
+        address guardian_,
+        address verifier_,
+        address defaultPersonhood_,
+        address personhoodReg_,
+        address dkim_,
+        uint64 timelock_
+    ) internal returns (SpectreRegistry) {
+        bytes memory initData = abi.encodeCall(
+            SpectreRegistry.initialize,
+            (owner_, guardian_, verifier_, defaultPersonhood_, personhoodReg_, dkim_, timelock_)
+        );
+        return SpectreRegistry(address(new ERC1967Proxy(address(implementation), initData)));
     }
 
     /// Propose+confirm an extra adapter (this test contract is the updater).
@@ -542,29 +566,44 @@ contract SpectreRegistryTest is Test {
         assertEq(registry.getRecord(owner).nonce, 2);
     }
 
-    function test_constructor_revert_zero_verifier() public {
+    function test_initialize_revert_zero_owner() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(0), address(personhood), address(personhoodReg), address(mockDkim), DEFAULT_TL);
+        _deployRegistry(address(0), address(this), address(mockVerifier), address(personhood), address(personhoodReg), address(mockDkim), DEFAULT_TL);
     }
 
-    function test_constructor_revert_zero_personhood() public {
+    function test_initialize_revert_zero_guardian() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(0), address(personhoodReg), address(mockDkim), DEFAULT_TL);
+        _deployRegistry(address(this), address(0), address(mockVerifier), address(personhood), address(personhoodReg), address(mockDkim), DEFAULT_TL);
     }
 
-    function test_constructor_revert_zero_personhood_registry() public {
+    function test_initialize_revert_zero_verifier() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(personhood), address(0), address(mockDkim), DEFAULT_TL);
+        _deployRegistry(address(this), address(this), address(0), address(personhood), address(personhoodReg), address(mockDkim), DEFAULT_TL);
     }
 
-    function test_constructor_revert_zero_dkim_registry() public {
+    function test_initialize_revert_zero_personhood() public {
         vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
-        new SpectreRegistry(address(mockVerifier), address(personhood), address(personhoodReg), address(0), DEFAULT_TL);
+        _deployRegistry(address(this), address(this), address(mockVerifier), address(0), address(personhoodReg), address(mockDkim), DEFAULT_TL);
     }
 
-    function test_constructor_revert_zero_default_timelock() public {
+    function test_initialize_revert_zero_personhood_registry() public {
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        _deployRegistry(address(this), address(this), address(mockVerifier), address(personhood), address(0), address(mockDkim), DEFAULT_TL);
+    }
+
+    function test_initialize_revert_zero_dkim_registry() public {
+        vm.expectRevert(SpectreRegistry.ZeroAddress.selector);
+        _deployRegistry(address(this), address(this), address(mockVerifier), address(personhood), address(personhoodReg), address(0), DEFAULT_TL);
+    }
+
+    function test_initialize_revert_zero_default_timelock() public {
         vm.expectRevert(SpectreRegistry.TimelockTooShort.selector);
-        new SpectreRegistry(address(mockVerifier), address(personhood), address(personhoodReg), address(mockDkim), 0);
+        _deployRegistry(address(this), address(this), address(mockVerifier), address(personhood), address(personhoodReg), address(mockDkim), 0);
+    }
+
+    function test_initialize_cannot_be_called_twice() public {
+        vm.expectRevert(); // InvalidInitialization
+        registry.initialize(address(this), address(this), address(mockVerifier), address(personhood), address(personhoodReg), address(mockDkim), DEFAULT_TL);
     }
 
     // ── A4: default timelock ─────────────────────────────────────────────────
@@ -661,7 +700,9 @@ contract SpectreRegistryTest is Test {
     function test_initiate_revert_when_dkim_key_unknown() public {
         // Deploy a registry that rejects every key, point a fresh SpectreRegistry at it.
         DenyAllDKIMRegistry deny = new DenyAllDKIMRegistry();
-        SpectreRegistry strict = new SpectreRegistry(
+        SpectreRegistry strict = _deployRegistry(
+            address(this),
+            address(this),
             address(mockVerifier),
             address(personhood),
             address(personhoodReg),
@@ -746,7 +787,9 @@ contract SpectreRegistryTest is Test {
 
     function test_effects_applied_before_external_personhood_call() public {
         OrderingProbePersonhood probe = new OrderingProbePersonhood();
-        SpectreRegistry reg = new SpectreRegistry(
+        SpectreRegistry reg = _deployRegistry(
+            address(this),
+            address(this),
             address(mockVerifier),
             address(probe),
             address(personhoodReg),
@@ -819,5 +862,67 @@ contract SpectreRegistryTest is Test {
 
         vm.expectRevert(SpectreRegistry.AdapterNotApproved.selector);
         registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
+    }
+
+    // ── Pause + governance ────────────────────────────────────────────────────
+
+    function test_pause_blocks_initiate() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+        registry.pause(); // this test contract is owner+guardian
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
+    }
+
+    function test_cancel_works_while_paused() public {
+        vm.prank(owner);
+        registry.register(emailHash);
+        registry.initiateRecovery(owner, newOwner, proof, inputs, 999, _pp());
+        registry.pause();
+        // Subtractive guarantee: cancel must still work while paused.
+        vm.prank(owner);
+        registry.cancelRecovery(owner);
+        (bool pending,,,) = registry.recoveryStatus(owner);
+        assertFalse(pending);
+    }
+
+    function test_guardian_can_pause_owner_unpauses() public {
+        address guardian = address(0x6171a);
+        SpectreRegistry reg = _deployRegistry(
+            address(this), guardian, address(mockVerifier),
+            address(personhood), address(personhoodReg), address(mockDkim), DEFAULT_TL
+        );
+
+        vm.prank(guardian);
+        reg.pause();
+        assertTrue(reg.paused());
+
+        // Guardian cannot unpause (additive — owner only).
+        vm.prank(guardian);
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, guardian)
+        );
+        reg.unpause();
+
+        reg.unpause(); // owner = this contract
+        assertFalse(reg.paused());
+    }
+
+    function test_stranger_cannot_pause() public {
+        vm.prank(address(0xDEAD));
+        vm.expectRevert(SpectreRegistry.NotPauseGuardian.selector);
+        registry.pause();
+    }
+
+    function test_setVerifier_owner_only_and_updates() public {
+        MockVerifier v2 = new MockVerifier();
+        vm.prank(address(0xDEAD));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0xDEAD))
+        );
+        registry.setVerifier(address(v2));
+
+        registry.setVerifier(address(v2)); // owner = this contract
+        assertEq(address(registry.verifier()), address(v2));
     }
 }

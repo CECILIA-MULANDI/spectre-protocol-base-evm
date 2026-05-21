@@ -8,6 +8,7 @@ import "../src/MockWorldID.sol";
 import "../src/DKIMRegistry.sol";
 import "../src/WorldIDPersonhoodAdapter.sol";
 import "../src/PersonhoodRegistry.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 /// @notice Deploys HonkVerifier + MockWorldID + DKIMRegistry + SpectreRegistry
 ///         for local / testnet E2E testing.
@@ -43,15 +44,26 @@ contract DeployMock is Script {
         PersonhoodRegistry personhoodRegistry = new PersonhoodRegistry(deployer, 60);
         console.log("PersonhoodRegistry deployed: ", address(personhoodRegistry));
 
-        // 100 blocks default+minimum — local/testnet only
-        SpectreRegistry registry = new SpectreRegistry(
-            address(verifier),
-            address(personhood),
-            address(personhoodRegistry),
-            address(dkimRegistry),
-            100
+        // 100 blocks default+minimum — local/testnet only.
+        // owner / pauseGuardian / proxy-admin all = deployer for the mock.
+        SpectreRegistry impl = new SpectreRegistry();
+        bytes memory initData = abi.encodeCall(
+            SpectreRegistry.initialize,
+            (
+                deployer,
+                deployer,
+                address(verifier),
+                address(personhood),
+                address(personhoodRegistry),
+                address(dkimRegistry),
+                uint64(100)
+            )
         );
-        console.log("SpectreRegistry deployed at: ", address(registry));
+        TransparentUpgradeableProxy proxy =
+            new TransparentUpgradeableProxy(address(impl), deployer, initData);
+        SpectreRegistry registry = SpectreRegistry(address(proxy));
+        console.log("SpectreRegistry impl at:     ", address(impl));
+        console.log("SpectreRegistry (proxy) at:  ", address(registry));
 
         vm.stopBroadcast();
     }

@@ -6,6 +6,7 @@ import "../src/SpectreRegistry.sol";
 import "../src/SpectreAccount.sol";
 import "../src/WorldIDPersonhoodAdapter.sol";
 import "../src/PersonhoodRegistry.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockVerifier {
     function verify(bytes calldata, bytes32[] calldata) external pure returns (bool) {
@@ -58,13 +59,20 @@ contract SpectreAccountTest is Test {
             new WorldIDPersonhoodAdapter(address(new MockWorldID()), 1, 1);
         PersonhoodRegistry personhoodReg =
             new PersonhoodRegistry(address(this), 1 days);
-        registry = new SpectreRegistry(
-            address(new MockVerifier()),
-            address(personhood),
-            address(personhoodReg),
-            address(new MockDKIMRegistry()),
-            TIMELOCK
+        SpectreRegistry impl = new SpectreRegistry();
+        bytes memory initData = abi.encodeCall(
+            SpectreRegistry.initialize,
+            (
+                address(this),
+                address(this),
+                address(new MockVerifier()),
+                address(personhood),
+                address(personhoodReg),
+                address(new MockDKIMRegistry()),
+                TIMELOCK
+            )
         );
+        registry = SpectreRegistry(address(new ERC1967Proxy(address(impl), initData)));
 
         vm.prank(agentId);
         registry.register(emailHash);

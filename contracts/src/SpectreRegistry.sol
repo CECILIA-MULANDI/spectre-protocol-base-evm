@@ -2,6 +2,9 @@
 pragma solidity ^0.8.21;
 
 import {IPersonhoodVerifier} from "./IPersonhoodVerifier.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 interface IUltraVerifier {
     function verify(
@@ -25,7 +28,11 @@ interface IPersonhoodRegistry {
 ///           2. Backup          — pre-registered backup wallet initiates
 ///           3. Social          — M-of-N guardian approvals
 ///         All modes are time-locked so the real owner can cancel a fraudulent attempt.
-contract SpectreRegistry {
+/// @dev    Upgradeable (Transparent proxy). Governance is parameterised at
+///         `initialize`: `owner` controls upgrades-adjacent setters, a separate
+///         `pauseGuardian` can halt initiate/execute (never cancel). Testnet
+///         passes EOAs; mainnet passes a multisig/timelock — no code change.
+contract SpectreRegistry is Initializable, OwnableUpgradeable, PausableUpgradeable {
     enum RecoveryMode {
         None,
         EmailPersonhood,
@@ -44,6 +51,7 @@ contract SpectreRegistry {
     error InvalidProof();
     error NullifierAlreadyUsed();
     error AdapterNotApproved();
+    error NotPauseGuardian();
     error TimelockTooShort();
     error NotOwner();
     error ZeroAddress();
@@ -129,35 +137,87 @@ contract SpectreRegistry {
     mapping(bytes32 => mapping(address => bool)) public guardianVotes;
     mapping(bytes32 => uint8) public approvalCounts;
 
-    // External contracts
-    IUltraVerifier public immutable verifier;
-    IPersonhoodVerifier public immutable defaultPersonhood;
-    IPersonhoodRegistry public immutable personhoodRegistry;
-    IDKIMRegistry public immutable dkimRegistry;
+    // External contracts. Storage (not immutable) so the proxy can govern them;
+    // `verifier` is the high-churn seam (every circuit hardening) and has a setter.
+    IUltraVerifier public verifier;
+    IPersonhoodVerifier public defaultPersonhood;
+    IPersonhoodRegistry public personhoodRegistry;
+    IDKIMRegistry public dkimRegistry;
 
-    // Default timelock — set per deployment, immutable.
-    // Acts as both the protocol default AND the minimum any user can pick.
-    uint64 public immutable defaultTimelockBlocks;
+    // Default timelock — set once at initialize. Both the protocol default AND
+    // the minimum any user can pick. Deliberately no setter (policy is fixed).
+    uint64 public defaultTimelockBlocks;
 
-    constructor(
+    // Subtractive emergency role: can pause initiate/execute, never cancel.
+    address public pauseGuardian;
+
+    event VerifierUpdated(address indexed verifier);
+    event PauseGuardianUpdated(address indexed guardian);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice One-time initializer (runs through the proxy). Governance roles
+    ///         are parameters: testnet passes EOAs, mainnet passes a multisig /
+    ///         timelock — identical bytecode either way.
+    function initialize(
+        address owner_,
+        address pauseGuardian_,
         address _verifier,
         address _defaultPersonhood,
         address _personhoodRegistry,
         address _dkimRegistry,
         uint64 _defaultTimelockBlocks
-    ) {
+    ) external initializer {
         if (
+            owner_ == address(0) ||
+            pauseGuardian_ == address(0) ||
             _verifier == address(0) ||
             _defaultPersonhood == address(0) ||
             _personhoodRegistry == address(0) ||
             _dkimRegistry == address(0)
         ) revert ZeroAddress();
         if (_defaultTimelockBlocks == 0) revert TimelockTooShort();
+
+        __Ownable_init(owner_);
+        __Pausable_init();
+
         verifier = IUltraVerifier(_verifier);
         defaultPersonhood = IPersonhoodVerifier(_defaultPersonhood);
         personhoodRegistry = IPersonhoodRegistry(_personhoodRegistry);
         dkimRegistry = IDKIMRegistry(_dkimRegistry);
         defaultTimelockBlocks = _defaultTimelockBlocks;
+        pauseGuardian = pauseGuardian_;
+    }
+
+    // ── Governance (owner = simple admin on testnet, multisig/timelock on mainnet) ──
+
+    /// @notice Swap the ZK verifier (the high-churn seam). Owner only.
+    function setVerifier(address _verifier) external onlyOwner {
+        if (_verifier == address(0)) revert ZeroAddress();
+        verifier = IUltraVerifier(_verifier);
+        emit VerifierUpdated(_verifier);
+    }
+
+    /// @notice Update the pause guardian. Owner only.
+    function setPauseGuardian(address guardian) external onlyOwner {
+        if (guardian == address(0)) revert ZeroAddress();
+        pauseGuardian = guardian;
+        emit PauseGuardianUpdated(guardian);
+    }
+
+    /// @notice Halt initiate/execute. Callable by the guardian or owner.
+    function pause() external {
+        if (msg.sender != pauseGuardian && msg.sender != owner())
+            revert NotPauseGuardian();
+        _pause();
+    }
+
+    /// @notice Resume. Owner only (unpause is additive — guardian can't).
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     /// @notice Register an agent recovery config using the protocol's default timelock.
@@ -233,7 +293,7 @@ contract SpectreRegistry {
         bytes32[] calldata emailPublicInputs,
         uint256 personhoodNullifier,
         bytes calldata personhoodProof
-    ) external {
+    ) external whenNotPaused {
         AgentRecord storage record = records[agentOwner];
         if (record.owner == address(0)) revert NotRegistered();
         if (record.pendingOwner != address(0)) revert RecoveryPending();
@@ -308,7 +368,7 @@ contract SpectreRegistry {
     function initiateBackupRecovery(
         address agentOwner,
         address newOwner
-    ) external {
+    ) external whenNotPaused {
         AgentRecord storage record = records[agentOwner];
         if (record.owner == address(0)) revert NotRegistered();
         if (record.pendingOwner != address(0)) revert RecoveryPending();
@@ -366,7 +426,7 @@ contract SpectreRegistry {
     function approveGuardianRecovery(
         address agentOwner,
         address newOwner
-    ) external {
+    ) external whenNotPaused {
         AgentRecord storage record = records[agentOwner];
         if (record.owner == address(0)) revert NotRegistered();
         // Allow voting when no pending recovery, or when the same newOwner is already pending
@@ -434,7 +494,7 @@ contract SpectreRegistry {
     }
 
     /// @notice Execute a recovery after the timelock has elapsed. Callable by anyone.
-    function executeRecovery(address agentOwner) external {
+    function executeRecovery(address agentOwner) external whenNotPaused {
         AgentRecord storage record = records[agentOwner];
         if (record.owner == address(0)) revert NotRegistered();
         if (record.pendingOwner == address(0)) revert NoRecoveryPending();
@@ -527,4 +587,7 @@ contract SpectreRegistry {
             result := keccak256(ptr, 0x240)
         }
     }
+
+    /// @dev Reserved storage for future upgrades (namespaced OZ modules aside).
+    uint256[50] private __gap;
 }
