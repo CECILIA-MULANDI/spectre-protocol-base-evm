@@ -31,6 +31,7 @@
     "express": "^5.2.1",
     "mailparser": "^3.9.4",
     "multer": "^2.1.1",
+    "resend": "^6.12.4",
     "viem": "^2.21.0"
   },
   "devDependencies": {

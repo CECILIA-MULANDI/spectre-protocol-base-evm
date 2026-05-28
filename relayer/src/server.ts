@@ -24,6 +24,12 @@ import multer from "multer";
 import { signRequest } from "@worldcoin/idkit-server";
 import { parseEmail } from "./email/parser.js";
 import { fetchDKIMPublicKey } from "./email/dkim.js";
+import {
+  issueChallenge,
+  verifyChallenge,
+  ChallengeCooldownError,
+  EmailConfigError,
+} from "./email/outbound.js";
 import { buildWitness } from "./prover/witness.js";
 import { generateProof, verifyProof } from "./prover/prover.js";
 import { registerNotifyRoutes } from "./notify/api.js";
@@ -139,6 +145,64 @@ app.post("/worldid-context", proverLimit, (_req, res) => {
     expires_at: sig.expiresAt,
     signature:  sig.sig,
   });
+});
+
+// Email-confirmation challenge endpoints. Per-IP rate limit at the bucket
+// below; per-destination-email cooldown enforced inside issueChallenge.
+// Together they bound (IP-based) request floods and (email-based) harassment.
+const emailLimit = makeRateLimiter({
+  capacity: 5,
+  refillPerSec: 0.05, // sustained ~3/min, burst of 5
+  message: "rate limit exceeded — too many email requests, retry shortly",
+});
+
+function isValidEmail(email: unknown): email is string {
+  if (typeof email !== "string") return false;
+  if (email.length === 0 || email.length > 254) return false;
+  // Structural check; production should swap for a real validator.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+app.post("/email/challenge", emailLimit, async (req, res) => {
+  try {
+    const { email } = req.body as { email?: unknown };
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: "valid email is required" });
+      return;
+    }
+    await issueChallenge(email);
+    res.status(204).end();
+  } catch (err: unknown) {
+    if (err instanceof ChallengeCooldownError) {
+      res.status(429).json({
+        error: "challenge cooldown",
+        retryAfterMs: err.retryAfterMs,
+      });
+      return;
+    }
+    if (err instanceof EmailConfigError) {
+      res
+        .status(503)
+        .json({ error: "email confirmation not configured on this relayer" });
+      return;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+app.post("/email/verify", emailLimit, (req, res) => {
+  const { email, code } = req.body as { email?: unknown; code?: unknown };
+  if (!isValidEmail(email)) {
+    res.status(400).json({ error: "valid email is required" });
+    return;
+  }
+  if (typeof code !== "string" || !/^\d{6}$/.test(code)) {
+    res.status(400).json({ error: "code must be a 6-digit string" });
+    return;
+  }
+  const verified = verifyChallenge(email, code);
+  res.status(verified ? 200 : 400).json({ verified });
 });
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
