@@ -15,6 +15,7 @@ import type {
 export class SpectreClient {
   private readonly registry: RegistryClient;
   private readonly prover: ProverBackend;
+  private readonly relayerUrl?: string;
 
   constructor(config: SpectreClientConfig) {
     if (!config.privateKey) {
@@ -34,6 +35,58 @@ export class SpectreClient {
             circuitDigest: config.prover.circuitDigest,
             allowUnpinnedCircuit: config.prover.allowUnpinnedCircuit,
           });
+
+    this.relayerUrl =
+      config.relayerUrl ??
+      (config.prover.type === "hosted" ? config.prover.url : undefined);
+  }
+
+  // Email-ownership confirmation (optional UX layer; protocol does not enforce)
+
+  /**
+   * Returns a `challenge()` / `verify(code)` pair bound to `email`. The
+   * relayer sends a one-time code to the address; the user reads it and
+   * pastes it back. UIs gate the on-chain `register(email)` button on
+   * `verify()` returning `true`. See relayer/src/email/outbound.ts.
+   *
+   * The on-chain contract does not enforce this — see
+   * docs/threat-model.md and `project_gas_sponsorship_oos`.
+   */
+  confirmEmail(email: string): {
+    challenge: () => Promise<void>;
+    verify: (code: string) => Promise<boolean>;
+  } {
+    if (!this.relayerUrl) {
+      throw new Error(
+        "confirmEmail requires `relayerUrl` (or a hosted prover URL) in SpectreClientConfig"
+      );
+    }
+    const base = this.relayerUrl.replace(/\/$/, "");
+    return {
+      challenge: async () => {
+        const r = await fetch(`${base}/email/challenge`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (!r.ok) {
+          const body = await r.text();
+          throw new Error(`email/challenge failed: ${r.status} ${body}`);
+        }
+      },
+      verify: async (code: string) => {
+        const r = await fetch(`${base}/email/verify`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, code }),
+        });
+        if (r.status === 200) {
+          const body = (await r.json()) as { verified?: boolean };
+          return body.verified === true;
+        }
+        return false;
+      },
+    };
   }
 
   // Registration

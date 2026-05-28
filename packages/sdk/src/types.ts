@@ -57,4 +57,8 @@ export type SpectreClientConfig = {
   registryAddress: Address;
   privateKey: `0x${string}`;
   prover: ProverConfig;
+  /** Optional relayer base URL for off-chain helpers like email confirmation.
+   *  When the hosted prover and the email-confirmation relayer are the same
+   *  service, this typically equals `prover.url`. */
+  relayerUrl?: string;
 };
