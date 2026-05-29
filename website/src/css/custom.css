@@ -1,0 +1,155 @@
+/**
+ * Spectre Protocol palette, mirrored from docs/index.html (the marketing site).
+ * Light mode: warm cream / dark green-grey accent.
+ * Dark mode: deep navy / teal accent.
+ */
+
+:root {
+  /* Spectre palette: light */
+  --spectre-bg: #F2EFE9;
+  --spectre-bg2: #EAE6DF;
+  --spectre-bg3: #DDD9D1;
+  --spectre-text: #141210;
+  --spectre-text2: #6B6559;
+  --spectre-text3: #A09890;
+  --spectre-accent: #3B5249;
+  --spectre-accent-dim: #2A3D35;
+  --spectre-accent-bg: #DDE8E3;
+  --spectre-border: rgba(0, 0, 0, 0.08);
+  --spectre-border2: rgba(0, 0, 0, 0.14);
+  --spectre-gold: #8A6A00;
+
+  --ifm-color-primary: var(--spectre-accent);
+  --ifm-color-primary-dark: var(--spectre-accent-dim);
+  --ifm-color-primary-darker: #243329;
+  --ifm-color-primary-darkest: #1e2a22;
+  --ifm-color-primary-light: #4a6359;
+  --ifm-color-primary-lighter: #56716A;
+  --ifm-color-primary-lightest: #6B8A82;
+
+  --ifm-background-color: var(--spectre-bg);
+  --ifm-background-surface-color: var(--spectre-bg2);
+  --ifm-color-content: var(--spectre-text);
+  --ifm-color-content-secondary: var(--spectre-text2);
+  --ifm-color-emphasis-200: var(--spectre-border);
+  --ifm-color-emphasis-300: var(--spectre-border2);
+  --ifm-toc-border-color: var(--spectre-border);
+
+  --ifm-code-font-size: 90%;
+  --ifm-code-background: var(--spectre-bg2);
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+
+  --ifm-navbar-background-color: var(--spectre-bg);
+  --ifm-navbar-link-color: var(--spectre-text);
+  --ifm-footer-background-color: var(--spectre-bg2);
+  --ifm-footer-color: var(--spectre-text2);
+  --ifm-footer-link-color: var(--spectre-text);
+  --ifm-footer-title-color: var(--spectre-text);
+
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --ifm-heading-font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --ifm-font-size-base: 17px;
+  --ifm-line-height-base: 1.65;
+  --ifm-h1-font-size: 2.5rem;
+  --ifm-h2-font-size: 1.875rem;
+  --ifm-h3-font-size: 1.375rem;
+  --ifm-heading-font-weight: 600;
+  --ifm-heading-line-height: 1.25;
+}
+
+[data-theme='dark'] {
+  /* Spectre palette: dark */
+  --spectre-bg: #0A0E1A;
+  --spectre-bg2: #111827;
+  --spectre-bg3: #1C2B40;
+  --spectre-text: #E8ECF4;
+  --spectre-text2: #6B8299;
+  --spectre-text3: #2E3F55;
+  --spectre-accent: #00C9A7;
+  --spectre-accent-dim: #007A65;
+  --spectre-accent-bg: #071A16;
+  --spectre-border: rgba(255, 255, 255, 0.06);
+  --spectre-border2: rgba(255, 255, 255, 0.10);
+  --spectre-gold: #F0C040;
+
+  --ifm-color-primary: var(--spectre-accent);
+  --ifm-color-primary-dark: var(--spectre-accent-dim);
+  --ifm-color-primary-darker: #006a58;
+  --ifm-color-primary-darkest: #00554a;
+  --ifm-color-primary-light: #1FD8B9;
+  --ifm-color-primary-lighter: #2FDEBF;
+  --ifm-color-primary-lightest: #4FE5C9;
+
+  --ifm-background-color: var(--spectre-bg);
+  --ifm-background-surface-color: var(--spectre-bg2);
+  --ifm-color-content: var(--spectre-text);
+  --ifm-color-content-secondary: var(--spectre-text2);
+  --ifm-color-emphasis-200: var(--spectre-border);
+  --ifm-color-emphasis-300: var(--spectre-border2);
+  --ifm-toc-border-color: var(--spectre-border);
+  --ifm-code-background: var(--spectre-bg2);
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.08);
+
+  --ifm-navbar-background-color: var(--spectre-bg);
+  --ifm-navbar-link-color: var(--spectre-text);
+  --ifm-footer-background-color: var(--spectre-bg2);
+  --ifm-footer-color: var(--spectre-text2);
+  --ifm-footer-link-color: var(--spectre-text);
+  --ifm-footer-title-color: var(--spectre-text);
+}
+
+/* Hero: drop the bright primary block, use the page bg with subtle bottom border. */
+.hero--primary {
+  background-color: var(--spectre-bg);
+  color: var(--spectre-text);
+  border-bottom: 1px solid var(--spectre-border);
+  padding: 6rem 0 5rem;
+}
+.hero__title {
+  color: var(--spectre-text);
+  font-family: var(--ifm-heading-font-family);
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.hero__subtitle {
+  color: var(--spectre-text2);
+  font-size: 1.25rem;
+  font-weight: 400;
+  margin-top: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Hero CTA buttons: filled = accent on bg-color text; outline = transparent with subtle border. */
+.hero--primary .button--secondary {
+  background-color: var(--spectre-accent);
+  color: var(--spectre-bg);
+  border-color: var(--spectre-accent);
+}
+.hero--primary .button--secondary:hover {
+  background-color: var(--spectre-accent-dim);
+  border-color: var(--spectre-accent-dim);
+  color: var(--spectre-bg);
+}
+.hero--primary .button--outline.button--secondary {
+  background-color: transparent;
+  color: var(--spectre-text);
+  border-color: var(--spectre-border2);
+}
+.hero--primary .button--outline.button--secondary:hover {
+  background-color: var(--spectre-accent);
+  border-color: var(--spectre-accent);
+  color: var(--spectre-bg);
+}
+
+section[class*='features'] {
+  padding: 4rem 0;
+}
+
+a {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
