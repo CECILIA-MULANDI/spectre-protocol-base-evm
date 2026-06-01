@@ -1,6 +1,6 @@
 # Spectre Protocol-EVM(BASE)
 
-Zero-knowledge account recovery for AI agents on Base. Spectre lets agent owners recover control using cryptographic proofs instead of seed phrases or centralized custodians.
+Zero-knowledge account recovery for autonomous on-chain agents. Spectre lets agent owners recover control using cryptographic proofs instead of seed phrases or centralized custodians. The protocol is chain-agnostic; v1 is deployed on Base.
 
 ## How it works
 
@@ -243,7 +243,7 @@ forge test -vvv
 
 ## Deployed contracts (Base Sepolia)
 
-`SpectreRegistry` is a Transparent proxy — use the **proxy** address; the implementation is upgradeable behind it.
+`SpectreRegistry` is a Transparent proxy; use the **proxy** address. The implementation is upgradeable behind it.
 
 | Contract                       | Address                                      |
 | ------------------------------ | -------------------------------------------- |

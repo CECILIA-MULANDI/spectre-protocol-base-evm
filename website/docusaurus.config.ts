@@ -7,7 +7,7 @@ const EDIT_BASE = `${GITHUB_URL}/tree/main/website/`;
 
 const config: Config = {
   title: "Spectre Protocol",
-  tagline: "Zero-knowledge account recovery for AI agents on Base",
+  tagline: "Zero-knowledge account recovery for autonomous on-chain agents",
   favicon: "img/favicon.ico",
 
   future: {
