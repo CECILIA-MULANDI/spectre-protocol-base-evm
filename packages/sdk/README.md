@@ -1,6 +1,6 @@
 # @spectre-protocol/sdk
 
-TypeScript SDK for [Spectre Protocol](https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm) - ZK account recovery for AI agents on Base.
+TypeScript SDK for [Spectre Protocol](https://github.com/CECILIA-MULANDI/spectre-protocol-base-evm) - ZK account recovery for autonomous on-chain agents.
 
 Spectre lets an agent owner recover access to their on-chain identity through one of three modes:
 
@@ -40,8 +40,11 @@ const client = new SpectreClient({
   },
 });
 
-// Register an agent with a 10-block recovery timelock
-const { hash, emailHash } = await client.register("alice@example.com", 10n);
+// Register an agent with the protocol default timelock
+const { hash, emailHash } = await client.register("alice@example.com");
+
+// …or arm a longer cancel window than the default
+// const { hash } = await client.registerWithCustomTimelock("alice@example.com", 100n);
 
 // Read state
 const record = await client.getRecord(ownerAddress);
@@ -57,7 +60,17 @@ type SpectreClientConfig = {
   privateKey: `0x${string}`;
   prover:
     | { type: "hosted"; url: string }
-    | { type: "browser"; circuitUrl: string };
+    | {
+        type: "browser";
+        circuitUrl: string;
+        /** SHA-256 of the circuit JSON bytes whose VK is in the deployed Verifier.
+         *  Required for trustless use; omit only with `allowUnpinnedCircuit: true`. */
+        circuitDigest?: string;
+        allowUnpinnedCircuit?: boolean;
+      };
+  /** Optional relayer base URL for off-chain helpers like email confirmation.
+   *  Defaults to `prover.url` when using the hosted prover. */
+  relayerUrl?: string;
 };
 ```
 
@@ -157,6 +170,40 @@ The agent owner can also abort an in-flight recovery at any time:
 await client.cancelRecovery(agentOwner);
 ```
 
+## Monitoring
+
+The cancel window is your only protection. You must watch for hostile recovery attempts so you can call `cancelRecovery` during the timelock. The SDK offers two ways.
+
+### In-process RPC watcher (trustless)
+
+```ts
+const unwatch = client.watchRecovery({
+  agentOwner: myAgentOwner,            // omit to watch every agent
+  onInitiated: (e) => alertOnCall(e),  // page someone
+  onCancelled: (e) => console.log("cancelled", e),
+  onExecuted:  (e) => console.log("executed", e),
+});
+
+// later
+unwatch();
+```
+
+No third party in the path. Lives in-process; you miss events while your service is down.
+
+### Hosted webhook subscription (persistent)
+
+```ts
+// Signs with the agent owner key and registers a webhook with the relayer.
+await client.notify.subscribe({
+  endpoint: "https://hooks.example.com/spectre",
+});
+
+await client.notify.getSubscription(myAgentOwner);
+await client.notify.unsubscribe(myAgentOwner);
+```
+
+The relayer indexes the chain and POSTs a `RecoveryAlert` JSON to your endpoint when a recovery is initiated. See the [monitoring docs](https://docs.spectreprotocol.xyz/monitoring) for the payload shape and the `/subscribe` API reference.
+
 ## API reference
 
 | Method | Purpose |
@@ -174,7 +221,14 @@ await client.cancelRecovery(agentOwner);
 | `getGuardians(owner)` | List configured guardians. |
 | `getApprovalCount(owner, new)` | Current approval count for a candidate new owner. |
 | `computeSignal(owner, new, nonce)` | Compute the World ID signal for a recovery. |
-| `computeEmailHash(email)` | (via registry) keccak256 of the lowercased email. |
+| `watchRecovery({...})` | Subscribe to `RecoveryInitiated` / `Cancelled` / `Executed` over RPC. Returns an unwatch fn. |
+| `notify.subscribe({...})` | Register a webhook with the hosted relayer (signed). |
+| `notify.getSubscription(owner)` | Look up the current webhook subscription. |
+| `notify.unsubscribe(owner?)` | Remove the webhook subscription (signed). |
+| `confirmEmail(email)` | Returns `{ challenge, verify }` for the relayer's email-ownership UX gate (optional; not protocol-enforced). |
+| `registerWithCustomTimelock(email, timelockBlocks)` | Register with a longer-than-default cancel window. |
+| `registerWithAdapter(email, adapter, timelockBlocks)` | Register choosing a specific approved personhood adapter. |
+| `computeEmailHash(email)` | (via registry) sha256 of the lowercased, trimmed email. |
 
 ## Networks
 

@@ -39,6 +39,49 @@ export type TxResult = {
   receipt: import("viem").TransactionReceipt;
 };
 
+export type RecoveryInitiatedEvent = {
+  agentOwner: Address;
+  newOwner: Address;
+  executeAfterBlock: bigint;
+  mode: RecoveryMode;
+  txHash: `0x${string}`;
+  blockNumber: bigint;
+};
+
+export type RecoveryCancelledEvent = {
+  agentOwner: Address;
+  txHash: `0x${string}`;
+  blockNumber: bigint;
+};
+
+export type RecoveryExecutedEvent = {
+  agentOwner: Address;
+  newOwner: Address;
+  txHash: `0x${string}`;
+  blockNumber: bigint;
+};
+
+export type WatchRecoveryOptions = {
+  /** Restrict to a single agent. Omit to watch every agent in the registry. */
+  agentOwner?: Address;
+  onInitiated?: (event: RecoveryInitiatedEvent) => void;
+  onCancelled?: (event: RecoveryCancelledEvent) => void;
+  onExecuted?: (event: RecoveryExecutedEvent) => void;
+  /** Polling interval in ms (defaults to viem's default for the transport). */
+  pollingInterval?: number;
+};
+
+/** Returned by {@link import("./client.js").SpectreClient.watchRecovery}. Call to stop watching. */
+export type Unwatch = () => void;
+
+export type WebhookSubscription = {
+  agentOwner: Address;
+  endpoint: string;
+  accountAddress?: Address;
+  channel: { kind: "webhook"; endpoint: string };
+  createdAt: number;
+};
+
 export type ProverConfig =
   | { type: "hosted"; url: string }
   | {

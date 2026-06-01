@@ -2,6 +2,7 @@ import { keccak256, encodePacked } from "viem";
 import { RegistryClient } from "./contracts/registry.js";
 import { HostedProver } from "./provers/hosted.js";
 import { BrowserProver } from "./provers/browser.js";
+import { NotifyClient } from "./notify.js";
 import type { ProverBackend } from "./provers/index.js";
 import type {
   Address,
@@ -10,12 +11,17 @@ import type {
   WorldIdProof,
   SpectreClientConfig,
   TxResult,
+  WatchRecoveryOptions,
+  Unwatch,
 } from "./types.js";
 
 export class SpectreClient {
   private readonly registry: RegistryClient;
   private readonly prover: ProverBackend;
   private readonly relayerUrl?: string;
+
+  /** Hosted-webhook subscription helpers. RPC watching is on the client directly via {@link watchRecovery}. */
+  readonly notify: NotifyClient;
 
   constructor(config: SpectreClientConfig) {
     if (!config.privateKey) {
@@ -39,6 +45,8 @@ export class SpectreClient {
     this.relayerUrl =
       config.relayerUrl ??
       (config.prover.type === "hosted" ? config.prover.url : undefined);
+
+    this.notify = new NotifyClient(() => this.relayerUrl, config.privateKey);
   }
 
   // Email-ownership confirmation (optional UX layer; protocol does not enforce)
@@ -229,5 +237,18 @@ export class SpectreClient {
         [agentOwner, newOwner, nonce]
       )
     );
+  }
+
+  // Monitoring (RPC-based, trustless)
+
+  /**
+   * Watch recovery lifecycle events directly off the RPC. Returns an `unwatch`
+   * function. Pass `agentOwner` to filter to one agent; omit to watch every
+   * agent in the registry.
+   *
+   * For server-side persistence and retry handling, use {@link notify} instead.
+   */
+  watchRecovery(opts: WatchRecoveryOptions): Unwatch {
+    return this.registry.watchRecovery(opts);
   }
 }

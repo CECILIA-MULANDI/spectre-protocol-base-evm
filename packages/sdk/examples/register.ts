@@ -2,7 +2,7 @@ import { SpectreClient } from "../src/index.js"
 
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0xc8458d4B3b67a9a9643d6818dC73D2a10723C551",
+  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1",
   privateKey: process.env.PRIVATE_KEY as `0x${string}`,
   prover: {
     type: "hosted",
@@ -12,7 +12,7 @@ const client = new SpectreClient({
 
 async function main() {
   console.log("Registering agent...")
-  const { hash, emailHash } = await client.register(
+  const { hash, emailHash } = await client.registerWithCustomTimelock(
     "alice@gmail.com",
     10n
   )

@@ -16,6 +16,9 @@ import type {
   AgentRecord,
   RecoveryStatus,
   WorldIdProof,
+  WatchRecoveryOptions,
+  Unwatch,
+  RecoveryInitiatedEvent,
 } from "../types.js";
 
 const RECOVERY_MODES = ["None", "EmailPersonhood", "Social", "Backup"] as const;
@@ -255,6 +258,89 @@ export class RegistryClient {
 
   async waitForTx(hash: Hash): Promise<TransactionReceipt> {
     return this.publicClient.waitForTransactionReceipt({ hash });
+  }
+
+  watchRecovery(opts: WatchRecoveryOptions): Unwatch {
+    const unwatchers: Array<() => void> = [];
+    const common = {
+      address: this.registryAddress,
+      abi: REGISTRY_ABI,
+      pollingInterval: opts.pollingInterval,
+    };
+
+    if (opts.onInitiated) {
+      const cb = opts.onInitiated;
+      unwatchers.push(
+        this.publicClient.watchContractEvent({
+          ...common,
+          eventName: "RecoveryInitiated",
+          args: opts.agentOwner ? { owner: opts.agentOwner } : undefined,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onLogs: (logs: any[]) => {
+            for (const log of logs) {
+              cb({
+                agentOwner: log.args.owner as Address,
+                newOwner: log.args.newOwner as Address,
+                executeAfterBlock: BigInt(log.args.executeAfterBlock),
+                // The contract only emits RecoveryInitiated for modes 1..3,
+                // so the "None" slot at index 0 is never observed here.
+                mode: (RECOVERY_MODES[Number(log.args.mode)] ??
+                  "EmailPersonhood") as RecoveryInitiatedEvent["mode"],
+                txHash: log.transactionHash,
+                blockNumber: BigInt(log.blockNumber),
+              });
+            }
+          },
+        })
+      );
+    }
+
+    if (opts.onCancelled) {
+      const cb = opts.onCancelled;
+      unwatchers.push(
+        this.publicClient.watchContractEvent({
+          ...common,
+          eventName: "RecoveryCancelled",
+          args: opts.agentOwner ? { owner: opts.agentOwner } : undefined,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onLogs: (logs: any[]) => {
+            for (const log of logs) {
+              cb({
+                agentOwner: log.args.owner as Address,
+                txHash: log.transactionHash,
+                blockNumber: BigInt(log.blockNumber),
+              });
+            }
+          },
+        })
+      );
+    }
+
+    if (opts.onExecuted) {
+      const cb = opts.onExecuted;
+      unwatchers.push(
+        this.publicClient.watchContractEvent({
+          ...common,
+          eventName: "RecoveryExecuted",
+          args: opts.agentOwner ? { owner: opts.agentOwner } : undefined,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onLogs: (logs: any[]) => {
+            for (const log of logs) {
+              cb({
+                agentOwner: log.args.owner as Address,
+                newOwner: log.args.newOwner as Address,
+                txHash: log.transactionHash,
+                blockNumber: BigInt(log.blockNumber),
+              });
+            }
+          },
+        })
+      );
+    }
+
+    return () => {
+      for (const u of unwatchers) u();
+    };
   }
 
   /// SHA-256 of the lowercased, trimmed email address.

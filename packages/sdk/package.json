@@ -1,10 +1,10 @@
 {
   "name": "@spectre-protocol/sdk",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publishConfig": {
     "access": "public"
   },
-  "description": "SDK for Spectre Protocol — ZK account recovery for AI agents on Base",
+  "description": "SDK for Spectre Protocol: ZK account recovery for autonomous on-chain agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
