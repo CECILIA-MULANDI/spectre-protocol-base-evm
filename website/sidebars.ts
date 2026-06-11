@@ -6,6 +6,7 @@ const sidebars: SidebarsConfig = {
     "why-spectre",
     "quickstart",
     "recovery-modes",
+    "recovering-with-email",
     "monitoring",
     "threat-model",
   ],

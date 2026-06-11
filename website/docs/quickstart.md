@@ -22,7 +22,7 @@ import { SpectreClient } from "@spectre-protocol/sdk";
 
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0x...", // SpectreRegistry on Base Sepolia
+  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1", // SpectreRegistry on Base Sepolia
   privateKey: "0x...", // your owner key
   prover: {
     type: "hosted",
@@ -160,31 +160,34 @@ Now **Mode 3 (Social)** is armed.
 
 ## Step 5: Recover via email
 
-Recovery happens in two on-chain steps separated by a timelock.
+Recovery happens in two on-chain steps separated by a timelock. The shape:
 
 ```ts
-// 5a. Generate the ZK proof from a .eml file the user sends
-//     to themselves with subject `spectre:<newOwnerAsBigInt>:<nonce>`.
-const eml = await fetch("/recovery-email.eml").then((r) => r.bytes());
+// Read the current nonce; it increments on every successful or cancelled
+// recovery, so always fetch fresh rather than caching.
+const record = await client.getRecord(agentOwner);
 
 await client.initiateEmailRecovery({
-  eml,
-  agentOwner: "0xOldOwner...",
-  newOwner: "0xNewOwner...",
-  nonce: 1n,
-  worldIdProof,
+  eml,                       // Uint8Array of the user's .eml file
+  agentOwner,
+  newOwner,
+  nonce: record.nonce,
+  worldIdProof,              // shape: { root, nullifier_hash, proof[8] }
 });
 
-// 5b. Wait for the timelock. The current owner can cancel during this window.
-//     Check getRecoveryStatus to see executeAfterBlock.
-const status = await client.getRecoveryStatus("0xOldOwner...");
-console.log(`Recovery can execute after block ${status.executeAfterBlock}`);
+// Watch the timelock. The current owner can cancel during this window.
+const status = await client.getRecoveryStatus(agentOwner);
+console.log(`Recovery executes at block ${status.executeAfterBlock}`);
 
-// 5c. Once the timelock elapses, anyone can finalize.
-await client.executeRecovery("0xOldOwner...");
+// Once block.number >= executeAfterBlock, anyone can finalise.
+await client.executeRecovery(agentOwner);
 ```
 
-After `executeRecovery`, the agent's `owner` is `0xNewOwner...`. The `nonce` increments so old proofs can't be replayed.
+The two non-trivial inputs are the `.eml` (the user has to produce it from their email provider) and the `worldIdProof` (the user has to generate it in World App, with a signal that binds to the same `(agentOwner, newOwner, nonce)` tuple). Both have exact formatting requirements; the SDK ships helpers for each binding step.
+
+For the full walkthrough including Subject formatting, provider-by-provider `.eml` download instructions, and the World ID integration, see **[Recovering with Email + World ID](/recovering-with-email)**.
+
+After `executeRecovery`, the agent's `owner` is the new address and `record.nonce` has incremented, invalidating any old proofs.
 
 ## Cancelling a fraudulent recovery
 

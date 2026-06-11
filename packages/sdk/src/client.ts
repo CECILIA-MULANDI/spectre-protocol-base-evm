@@ -3,6 +3,7 @@ import { RegistryClient } from "./contracts/registry.js";
 import { HostedProver } from "./provers/hosted.js";
 import { BrowserProver } from "./provers/browser.js";
 import { NotifyClient } from "./notify.js";
+import { WorldIdClient } from "./worldid.js";
 import type { ProverBackend } from "./provers/index.js";
 import type {
   Address,
@@ -22,6 +23,9 @@ export class SpectreClient {
 
   /** Hosted-webhook subscription helpers. RPC watching is on the client directly via {@link watchRecovery}. */
   readonly notify: NotifyClient;
+
+  /** World ID helpers for the Email + Personhood recovery flow (rp_context fetch). */
+  readonly worldId: WorldIdClient;
 
   constructor(config: SpectreClientConfig) {
     if (!config.privateKey) {
@@ -47,6 +51,7 @@ export class SpectreClient {
       (config.prover.type === "hosted" ? config.prover.url : undefined);
 
     this.notify = new NotifyClient(() => this.relayerUrl, config.privateKey);
+    this.worldId = new WorldIdClient(() => this.relayerUrl);
   }
 
   // Email-ownership confirmation (optional UX layer; protocol does not enforce)
@@ -237,6 +242,20 @@ export class SpectreClient {
         [agentOwner, newOwner, nonce]
       )
     );
+  }
+
+  /**
+   * Build the exact email Subject that binds a recovery email to
+   * `(newOwner, nonce)`. The user sends an email from their registered address
+   * with this string as the Subject header; the circuit verifies the DKIM
+   * signature covers it. Format: `spectre:<newOwnerAsUint256>:<nonce>`.
+   *
+   * `newOwner` is encoded as its decimal uint256 representation (not hex), so
+   * `0x00...0001` becomes `1`. Use this helper rather than rolling your own
+   * string template; the parser is exact about formatting.
+   */
+  prepareRecoverySubject(newOwner: Address, nonce: bigint): string {
+    return `spectre:${BigInt(newOwner).toString()}:${nonce.toString()}`;
   }
 
   // Monitoring (RPC-based, trustless)

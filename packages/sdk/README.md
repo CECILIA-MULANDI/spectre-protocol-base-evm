@@ -124,8 +124,15 @@ const worldIdProof = JSON.parse(await readFile("worldid.json", "utf-8"));
 
 const record = await client.getRecord(agentOwner);
 
-// Compute the signal you need to pass into the World ID widget
+// Build the exact Subject line the user must put on the recovery email.
+// Format: `spectre:<newOwnerAsDecimalUint256>:<nonce>`.
+const subject = client.prepareRecoverySubject(newOwner, record.nonce);
+
+// Compute the signal you need to pass into the World ID widget.
 const signal = client.computeSignal(agentOwner, newOwner, record.nonce);
+
+// Fetch a signed rp_context from the relayer for the IDKit v4 widget.
+const rpContext = await client.worldId.getContext();
 
 const { hash } = await client.initiateEmailRecovery({
   eml,
@@ -135,6 +142,8 @@ const { hash } = await client.initiateEmailRecovery({
   worldIdProof,
 });
 ```
+
+See the [full walkthrough](https://docs.spectreprotocol.xyz/recovering-with-email) for provider-by-provider `.eml` download instructions and the World ID widget wiring.
 
 ### Backup wallet
 
@@ -221,6 +230,8 @@ The relayer indexes the chain and POSTs a `RecoveryAlert` JSON to your endpoint 
 | `getGuardians(owner)` | List configured guardians. |
 | `getApprovalCount(owner, new)` | Current approval count for a candidate new owner. |
 | `computeSignal(owner, new, nonce)` | Compute the World ID signal for a recovery. |
+| `prepareRecoverySubject(new, nonce)` | Build the exact email Subject (`spectre:<bigint>:<nonce>`) bound to a recovery. |
+| `worldId.getContext()` | Fetch a signed `rp_context` from the relayer for the IDKit v4 widget. |
 | `watchRecovery({...})` | Subscribe to `RecoveryInitiated` / `Cancelled` / `Executed` over RPC. Returns an unwatch fn. |
 | `notify.subscribe({...})` | Register a webhook with the hosted relayer (signed). |
 | `notify.getSubscription(owner)` | Look up the current webhook subscription. |
