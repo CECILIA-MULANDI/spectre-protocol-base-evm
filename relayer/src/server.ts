@@ -22,11 +22,13 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import { signRequest } from "@worldcoin/idkit-server";
+import { isAddress } from "viem";
 import { parseEmail } from "./email/parser.js";
 import { fetchDKIMPublicKey } from "./email/dkim.js";
 import {
   issueChallenge,
   verifyChallenge,
+  sendRecoveryEmail,
   ChallengeCooldownError,
   EmailConfigError,
 } from "./email/outbound.js";
@@ -203,6 +205,44 @@ app.post("/email/verify", emailLimit, (req, res) => {
   }
   const verified = verifyChallenge(email, code);
   res.status(verified ? 200 : 400).json({ verified });
+});
+
+app.post("/email/recovery", emailLimit, async (req, res) => {
+  try {
+    const { email, agentOwner, newOwner, nonce } = req.body as {
+      email?: unknown;
+      agentOwner?: unknown;
+      newOwner?: unknown;
+      nonce?: unknown;
+    };
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: "valid email is required" });
+      return;
+    }
+    if (!isAddress(agentOwner)) {
+      res.status(400).json({ error: "agentOwner must be a valid address" });
+      return;
+    }
+    if (!isAddress(newOwner)) {
+      res.status(400).json({ error: "newOwner must be a valid address" });
+      return;
+    }
+    if (typeof nonce !== "string" || !/^\d+$/.test(nonce)) {
+      res.status(400).json({ error: "nonce must be a numeric string" });
+      return;
+    }
+    await sendRecoveryEmail(email, agentOwner as string, newOwner as string, BigInt(nonce));
+    res.status(204).end();
+  } catch (err: unknown) {
+    if (err instanceof EmailConfigError) {
+      res
+        .status(503)
+        .json({ error: "email service not configured on this relayer" });
+      return;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
 });
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
