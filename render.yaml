@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: spectre-relayer
+    runtime: node
+    plan: free
+    buildCommand: cd relayer && npm install
+    startCommand: cd relayer && npm run server
+    envVars:
+      - key: WORLD_ID_RP_ID
+        scope: run
+      - key: WORLD_ID_SIGNING_KEY
+        scope: run
+      - key: RESEND_API_KEY
+        scope: run
+      - key: EMAIL_FROM
+        scope: run
+      - key: SPECTRE_RPC
+        scope: run
+      - key: SPECTRE_REGISTRY
+        scope: run
+      - key: PORT
+        value: "3001"

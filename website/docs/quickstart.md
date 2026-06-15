@@ -5,7 +5,7 @@ slug: /quickstart
 
 # Quickstart
 
-End-to-end: install the SDK, register an agent, set up a backup wallet, and run a recovery.
+End-to-end: install the SDK, register an agent, and run a recovery.
 
 ## Install
 
@@ -135,30 +135,7 @@ This sets up **Mode 1 (Email + Personhood)** for the address that signed the tra
 
 After this transaction, the user can recover via email and personhood. Other modes (backup, guardians) are off until armed separately.
 
-## Step 3: Add a backup wallet (optional)
-
-A second key the user controls. If their primary key is lost but the backup is reachable, recovery is one transaction.
-
-```ts
-await client.setBackupWallet("0xMyBackupAddress");
-```
-
-Now **Mode 2 (Backup)** is armed.
-
-## Step 4: Add social guardians (optional)
-
-M-of-N humans who can collectively recover on the user's behalf.
-
-```ts
-await client.setGuardians(
-  ["0xAlice...", "0xBob...", "0xCarol..."],
-  2 // threshold: 2-of-3
-);
-```
-
-Now **Mode 3 (Social)** is armed.
-
-## Step 5: Recover via email
+## Step 3: Recover via email
 
 Recovery happens in two on-chain steps separated by a timelock. The shape:
 
@@ -201,5 +178,8 @@ This works only before `executeRecovery` lands. The timelock window is configure
 
 ## Next steps
 
-- Pick which modes to arm in [Recovery modes](/recovery-modes).
-- Understand what Spectre trusts (and what it doesn't) in [Threat model](/threat-model).
+Email + Personhood is now armed and working. To add additional recovery paths or enhancements:
+
+- [Recovery modes](/recovery-modes) shows how to arm backup wallets and social guardians, plus the full threat model for each mode.
+- [Monitoring](/monitoring) explains how to watch for hostile recoveries during the timelock.
+- [Threat model](/threat-model) explains what Spectre trusts (and what it doesn't).
