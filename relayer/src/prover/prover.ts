@@ -58,7 +58,10 @@ export async function generateProof(
     "utf-8"
   );
   const nargoPath = process.env.NARGO_PATH || "nargo";
-  await execAsync(nargoPath, ["execute"], { cwd: CIRCUITS_DIR });
+  await execAsync(nargoPath, ["execute"], {
+    cwd: CIRCUITS_DIR,
+    maxBuffer: 10 * 1024 * 1024,
+  });
 
   // --oracle_hash keccak for Solidity verifier compatibility
   await execAsync("bb", [

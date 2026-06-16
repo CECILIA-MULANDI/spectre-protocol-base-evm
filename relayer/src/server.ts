@@ -18,6 +18,7 @@
  *   JSON: { proof: hex, publicInputs: hex, verificationKey: hex }
  *   Response 200: { valid: true }
  */
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
