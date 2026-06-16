@@ -99,9 +99,16 @@ app.post("/prove", proverLimit, upload.single("eml"), async (req, res) => {
     const witness = buildWitness(parsed, pubkey, newPublicKeyBig, nonceBig);
     const result = await generateProof(witness);
 
+    // Split binary public_inputs into 32-byte field elements, format as
+    // comma-separated 0x-prefixed hex (matches BrowserProver output format).
+    const piHex = result.publicInputs.toString("hex");
+    const fieldHexes: string[] = [];
+    for (let i = 0; i < piHex.length; i += 64) {
+      fieldHexes.push(`0x${piHex.slice(i, i + 64)}`);
+    }
     res.json({
       proof: result.proof.toString("hex"),
-      publicInputs: result.publicInputs.toString("hex"),
+      publicInputs: fieldHexes.join(","),
       fromAddress: parsed.fromAddress,
     });
   } catch (err: unknown) {
