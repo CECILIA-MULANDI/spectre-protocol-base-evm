@@ -57,7 +57,8 @@ export async function generateProof(
     witnessToToml(witness),
     "utf-8"
   );
-  await execAsync("nargo", ["execute"], { cwd: CIRCUITS_DIR });
+  const nargoPath = process.env.NARGO_PATH || "nargo";
+  await execAsync(nargoPath, ["execute"], { cwd: CIRCUITS_DIR });
 
   // --oracle_hash keccak for Solidity verifier compatibility
   await execAsync("bb", [

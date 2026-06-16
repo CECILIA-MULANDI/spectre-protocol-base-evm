@@ -13,6 +13,7 @@ RUN mkdir -p /root/.nargo/bin && \
     /root/.nargo/bin/nargo --version
 
 ENV PATH="/root/.nargo/bin:${PATH}"
+ENV NARGO_PATH="/root/.nargo/bin/nargo"
 
 COPY package*.json ./
 RUN npm ci --only=production
