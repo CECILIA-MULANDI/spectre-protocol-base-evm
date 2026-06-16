@@ -107,26 +107,3 @@ export function verifyChallenge(email: string, code: string): boolean {
   challenges.delete(key); // single-use
   return true;
 }
-
-export async function sendRecoveryEmail(
-  email: string,
-  agentOwner: string,
-  newOwner: string,
-  nonce: bigint
-): Promise<void> {
-  const resend = getResend();
-  const from = getFromAddress();
-  const subject = `spectre:${BigInt(newOwner)}:${nonce}`;
-
-  await resend.emails.send({
-    from,
-    to: email,
-    subject,
-    text:
-      `Your Spectre recovery has been initiated.\n\n` +
-      `Agent: ${agentOwner}\n` +
-      `New Owner: ${newOwner}\n` +
-      `Nonce: ${nonce}\n\n` +
-      `Use this email to complete your recovery. Do not reply to this email.`,
-  });
-}
