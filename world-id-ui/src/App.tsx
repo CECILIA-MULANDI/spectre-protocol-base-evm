@@ -196,7 +196,7 @@ export default function App() {
               action="spectre-recovery"
               rp_context={rpContext}
               constraints={any(CredentialRequest("proof_of_human", { signal }))}
-              allow_legacy_proofs={false}
+              allow_legacy_proofs={true}
               environment="staging"
               open={open}
               onOpenChange={setOpen}
