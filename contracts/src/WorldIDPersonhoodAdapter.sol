@@ -15,7 +15,11 @@ contract WorldIDPersonhoodAdapter is IPersonhoodVerifier {
     uint256 public immutable groupId;
     uint256 public immutable externalNullifier;
 
-    constructor(address _worldId, uint256 _groupId, uint256 _externalNullifier) {
+    constructor(
+        address _worldId,
+        uint256 _groupId,
+        uint256 _externalNullifier
+    ) {
         if (_worldId == address(0)) revert ZeroAddress();
         worldId = IWorldID(_worldId);
         groupId = _groupId;
@@ -27,8 +31,10 @@ contract WorldIDPersonhoodAdapter is IPersonhoodVerifier {
         uint256 nullifierHash,
         bytes calldata proofData
     ) external view override {
-        (uint256 root, uint256[8] memory proof) =
-            abi.decode(proofData, (uint256, uint256[8]));
+        (uint256 root, uint256[8] memory proof) = abi.decode(
+            proofData,
+            (uint256, uint256[8])
+        );
         worldId.verifyProof(
             root,
             groupId,
