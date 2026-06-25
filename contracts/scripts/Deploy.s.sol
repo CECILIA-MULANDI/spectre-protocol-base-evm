@@ -5,74 +5,65 @@ import "forge-std/Script.sol";
 import "../src/Verifier.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/DKIMRegistry.sol";
-import "../src/WorldIDPersonhoodAdapter.sol";
+import "../src/MockPersonhoodAdapter.sol";
 import "../src/PersonhoodRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-/// @notice Deploys UltraVerifier, DKIMRegistry, then SpectreRegistry.
+/// @notice Deploys Verifier + DKIMRegistry + Personhood adapter +
+///         PersonhoodRegistry + SpectreRegistry (Transparent proxy).
+///
+/// The personhood adapter is MockPersonhoodAdapter — Spectre's personhood
+/// scheme is pluggable via PersonhoodRegistry, and the testnet path uses
+/// the mock so dev iteration doesn't require an external identity provider.
+/// For mainnet, deploy a production adapter (e.g. ZK Passport) and either
+/// pass it as the default at init time or propose+confirm it through
+/// PersonhoodRegistry as an additional approved adapter.
 ///
 /// Required env vars:
-///   DEPLOYER_PRIVATE_KEY          — deployer private key (0x-prefixed)
-///   WORLD_ID_ROUTER               — World ID router address on the target network
-///   WORLD_ID_GROUP_ID             — World ID group ID (1 for Device tier)
-///   WORLD_ID_EXTERNAL_NULLIFIER   — derived from app_id + action via IDKit SDK
-///                                   run: cd world-id-ui && npx tsx src/nullifier.ts
-///   DEFAULT_TIMELOCK_BLOCKS       — default + minimum cancel window in blocks
-///                                   (e.g. 7200 ≈ 24h on Base mainnet)
-///   DKIM_UPDATER                  — address allowed to propose/revoke DKIM keys.
-///                                   Recommended: a multisig. EOA OK for v1 if you
-///                                   plan to transferUpdater() to a multisig later.
-///   DKIM_PROPOSAL_TIMELOCK        — seconds between propose() and confirm()
-///                                   (e.g. 86400 = 24h on mainnet)
+///   DEPLOYER_PRIVATE_KEY   — deployer private key (0x-prefixed)
+///   DKIM_UPDATER           — address allowed to propose/revoke DKIM keys
+///                            and personhood adapters
+///   DKIM_PROPOSAL_TIMELOCK — seconds between propose() and confirm()
+///   DEFAULT_TIMELOCK_BLOCKS — registry default + minimum cancel window in blocks
 ///
-/// Base Sepolia World ID router: 0x42FF98C4E85212a5D31358ACbFe76a621b784Fac
+/// Optional env vars (default to deployer if unset):
+///   SPECTRE_OWNER, PAUSE_GUARDIAN, PROXY_ADMIN_OWNER
 contract Deploy is Script {
     function run() external {
         vm.startBroadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
 
-        // 1. Auto-generated UltraHonk verifier
         HonkVerifier verifier = new HonkVerifier();
-        console.log("Verifier deployed at:        ", address(verifier));
+        console.log("Verifier:                    ", address(verifier));
 
-        // 2. DKIM key registry
         DKIMRegistry dkimRegistry = new DKIMRegistry(
             vm.envAddress("DKIM_UPDATER"),
             vm.envUint("DKIM_PROPOSAL_TIMELOCK")
         );
-        console.log("DKIMRegistry deployed at:    ", address(dkimRegistry));
+        console.log("DKIMRegistry:                ", address(dkimRegistry));
 
-        // 3. Personhood adapter (World ID v0) — the deploy-time default
-        WorldIDPersonhoodAdapter personhood = new WorldIDPersonhoodAdapter(
-            vm.envAddress("WORLD_ID_ROUTER"),
-            vm.envUint("WORLD_ID_GROUP_ID"),
-            vm.envUint("WORLD_ID_EXTERNAL_NULLIFIER")
-        );
-        console.log("PersonhoodAdapter deployed:  ", address(personhood));
+        MockPersonhoodAdapter personhood = new MockPersonhoodAdapter();
+        console.log("MockPersonhoodAdapter:       ", address(personhood));
 
-        // 4. Personhood-adapter allowlist (governs additional adapters; the
-        //    default adapter above is a deploy-time trust anchor)
         PersonhoodRegistry personhoodRegistry = new PersonhoodRegistry(
             vm.envAddress("DKIM_UPDATER"),
             vm.envUint("DKIM_PROPOSAL_TIMELOCK")
         );
-        console.log("PersonhoodRegistry deployed: ", address(personhoodRegistry));
+        console.log(
+            "PersonhoodRegistry:          ",
+            address(personhoodRegistry)
+        );
 
-        // 5. SpectreRegistry implementation + Transparent proxy
         address registry = _deployRegistryProxy(
             address(verifier),
             address(personhood),
             address(personhoodRegistry),
             address(dkimRegistry)
         );
-        console.log("SpectreRegistry (proxy) at:  ", registry);
+        console.log("SpectreRegistry (proxy):     ", registry);
 
         vm.stopBroadcast();
     }
 
-    /// @dev Isolated in its own frame to keep `run()` under the stack limit.
-    ///      Governance roles default to the deployer (testnet); set
-    ///      SPECTRE_OWNER / PAUSE_GUARDIAN / PROXY_ADMIN_OWNER to a
-    ///      multisig/timelock for mainnet — no code change, just env vars.
     function _deployRegistryProxy(
         address verifier,
         address personhood,
@@ -81,7 +72,6 @@ contract Deploy is Script {
     ) internal returns (address) {
         address deployer = vm.addr(vm.envUint("DEPLOYER_PRIVATE_KEY"));
         SpectreRegistry impl = new SpectreRegistry();
-        console.log("SpectreRegistry impl at:     ", address(impl));
         bytes memory initData = abi.encodeCall(
             SpectreRegistry.initialize,
             (
@@ -94,12 +84,13 @@ contract Deploy is Script {
                 uint64(vm.envUint("DEFAULT_TIMELOCK_BLOCKS"))
             )
         );
-        return address(
-            new TransparentUpgradeableProxy(
-                address(impl),
-                vm.envOr("PROXY_ADMIN_OWNER", deployer),
-                initData
-            )
-        );
+        return
+            address(
+                new TransparentUpgradeableProxy(
+                    address(impl),
+                    vm.envOr("PROXY_ADMIN_OWNER", deployer),
+                    initData
+                )
+            );
     }
 }
