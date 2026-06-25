@@ -4,7 +4,7 @@ pragma solidity ^0.8.21;
 import "forge-std/Test.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/SpectreAccount.sol";
-import "../src/WorldIDPersonhoodAdapter.sol";
+import "../src/MockPersonhoodAdapter.sol";
 import "../src/PersonhoodRegistry.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
@@ -12,12 +12,6 @@ contract MockVerifier {
     function verify(bytes calldata, bytes32[] calldata) external pure returns (bool) {
         return true;
     }
-}
-
-contract MockWorldID {
-    function verifyProof(
-        uint256, uint256, uint256, uint256, uint256, uint256[8] calldata
-    ) external pure {}
 }
 
 contract MockDKIMRegistry {
@@ -55,8 +49,7 @@ contract SpectreAccountTest is Test {
     uint64 constant TIMELOCK = 10;
 
     function setUp() public {
-        WorldIDPersonhoodAdapter personhood =
-            new WorldIDPersonhoodAdapter(address(new MockWorldID()), 1, 1);
+        MockPersonhoodAdapter personhood = new MockPersonhoodAdapter();
         PersonhoodRegistry personhoodReg =
             new PersonhoodRegistry(address(this), 1 days);
         SpectreRegistry impl = new SpectreRegistry();

@@ -4,7 +4,7 @@ pragma solidity ^0.8.21;
 import "forge-std/Test.sol";
 import "../src/SpectreRegistry.sol";
 import "../src/IPersonhoodVerifier.sol";
-import "../src/WorldIDPersonhoodAdapter.sol";
+import "../src/MockPersonhoodAdapter.sol";
 import "../src/PersonhoodRegistry.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -15,13 +15,6 @@ contract MockVerifier {
     function verify(bytes calldata, bytes32[] calldata) external pure returns (bool) {
         return true;
     }
-}
-
-/// @dev Stub World ID — always passes.
-contract MockWorldID {
-    function verifyProof(
-        uint256, uint256, uint256, uint256, uint256, uint256[8] calldata
-    ) external pure {}
 }
 
 /// @dev Personhood verifier that enforces checks-effects-interactions (S5).
@@ -66,8 +59,7 @@ contract SpectreRegistryTest is Test {
     SpectreRegistry            implementation;
     SpectreRegistry            registry;
     MockVerifier               mockVerifier;
-    MockWorldID                mockWorldId;
-    WorldIDPersonhoodAdapter   personhood;
+    MockPersonhoodAdapter      personhood;
     PersonhoodRegistry         personhoodReg;
     MockDKIMRegistry           mockDkim;
 
@@ -80,12 +72,10 @@ contract SpectreRegistryTest is Test {
     // helpers
     bytes      proof  = hex"00";
     bytes32[]  inputs;
-    uint256[8] wIdProof;
 
     function setUp() public {
         mockVerifier  = new MockVerifier();
-        mockWorldId   = new MockWorldID();
-        personhood    = new WorldIDPersonhoodAdapter(address(mockWorldId), 1, 1);
+        personhood    = new MockPersonhoodAdapter();
         personhoodReg = new PersonhoodRegistry(address(this), 1 days);
         mockDkim      = new MockDKIMRegistry();
         implementation = new SpectreRegistry();
@@ -125,10 +115,10 @@ contract SpectreRegistryTest is Test {
         personhoodReg.confirm(adapter);
     }
 
-    /// Wrap the WorldID-shaped proof (root + uint256[8]) into the opaque
-    /// personhoodProof bytes the new initiateRecovery signature expects.
-    function _pp() internal view returns (bytes memory) {
-        return abi.encode(uint256(1), wIdProof);
+    /// Opaque personhoodProof bytes for initiateRecovery. MockPersonhoodAdapter
+    /// ignores its proofData, so empty bytes suffice in tests.
+    function _pp() internal pure returns (bytes memory) {
+        return "";
     }
 
     /// Build the 70-field public-input array the contract now requires.
@@ -743,7 +733,7 @@ contract SpectreRegistryTest is Test {
         assertFalse(registry.usedNullifiers(999));
         assertEq(registry.getRecord(owner).pendingPersonhoodNullifier, 0);
 
-        // Same World ID identity (same nullifier) can recover again — pre-fix
+        // Same personhood identity (same nullifier) can recover again — pre-fix
         // this reverted NullifierAlreadyUsed and bricked the mode forever.
         bytes32[] memory fresh = _buildInputs(emailHash, newOwner, 2);
         registry.initiateRecovery(owner, newOwner, proof, fresh, 999, _pp());
@@ -825,7 +815,7 @@ contract SpectreRegistryTest is Test {
     }
 
     function test_registerWith_approved_adapter() public {
-        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        MockPersonhoodAdapter alt = new MockPersonhoodAdapter();
         _approveAdapter(address(alt));
 
         vm.prank(owner);
@@ -834,14 +824,14 @@ contract SpectreRegistryTest is Test {
     }
 
     function test_registerWith_unapproved_adapter_reverts() public {
-        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        MockPersonhoodAdapter alt = new MockPersonhoodAdapter();
         vm.prank(owner);
         vm.expectRevert(SpectreRegistry.AdapterNotApproved.selector);
         registry.registerWith(emailHash, address(alt), DEFAULT_TL);
     }
 
     function test_initiate_dispatches_to_agent_adapter() public {
-        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        MockPersonhoodAdapter alt = new MockPersonhoodAdapter();
         _approveAdapter(address(alt));
         vm.prank(owner);
         registry.registerWith(emailHash, address(alt), DEFAULT_TL);
@@ -852,7 +842,7 @@ contract SpectreRegistryTest is Test {
     }
 
     function test_initiate_reverts_when_agent_adapter_revoked() public {
-        WorldIDPersonhoodAdapter alt = new WorldIDPersonhoodAdapter(address(mockWorldId), 2, 2);
+        MockPersonhoodAdapter alt = new MockPersonhoodAdapter();
         _approveAdapter(address(alt));
         vm.prank(owner);
         registry.registerWith(emailHash, address(alt), DEFAULT_TL);
