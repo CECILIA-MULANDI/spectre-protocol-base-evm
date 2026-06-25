@@ -4,17 +4,19 @@ Zero-knowledge account recovery for autonomous on-chain agents. Spectre lets age
 
 ## How it works
 
-An agent owner registers with an email hash. To recover, they send a recovery email and verify their identity with World ID. The protocol verifies both proofs on-chain and starts a timelock - giving the real owner time to cancel if the attempt is fraudulent.
+An agent owner registers with an email hash. To recover, they send a recovery email and submit a personhood proof. The protocol verifies both proofs on-chain and starts a timelock, giving the real owner time to cancel if the attempt is fraudulent.
 
 Three recovery modes:
 
-| Mode                 | Trigger                                  | Proof required                           |
-| -------------------- | ---------------------------------------- | ---------------------------------------- |
-| **Email + World ID** | Anyone with the owner's email + World ID | DKIM ZK proof + World ID Semaphore proof |
-| **Backup wallet**    | Pre-registered backup address            | Transaction from backup wallet           |
-| **Social (M-of-N)**  | Guardian consensus                       | Threshold guardian approvals             |
+| Mode                    | Trigger                                  | Proof required                                |
+| ----------------------- | ---------------------------------------- | --------------------------------------------- |
+| **Email + Personhood**  | Anyone with the owner's email + a valid personhood proof | DKIM ZK proof + pluggable personhood proof |
+| **Backup wallet**       | Pre-registered backup address            | Transaction from backup wallet                |
+| **Social (M-of-N)**     | Guardian consensus                       | Threshold guardian approvals                  |
 
 All modes enforce a timelock before the key rotation finalizes.
+
+Personhood is pluggable through `PersonhoodRegistry`. The testnet deploy uses `MockPersonhoodAdapter` so dev iteration doesn't depend on an external identity provider; production will use a real adapter (ZK Passport is the next planned integration). The architecture supports multiple adapters via a governed propose/confirm allowlist.
 
 ## Architecture
 
@@ -22,10 +24,10 @@ All modes enforce a timelock before the key rotation finalizes.
 circuits/          Noir ZK circuit - DKIM email signature verification
 contracts/         Solidity smart contracts (Foundry)
 relayer/           TypeScript CLI + HTTP prover API
-world-id-ui/       React frontend for World ID proof generation
+packages/sdk/      TypeScript SDK for integrating apps
 ```
 
-**Recovery flow (Email + World ID):**
+**Recovery flow (Email + Personhood):**
 
 ```
 Owner sends recovery email
@@ -37,7 +39,7 @@ Owner sends recovery email
    Noir circuit generates ZK proof of valid DKIM + email content
         │
         ▼
-   Owner verifies with World ID (via world-id-ui)
+   Personhood proof (mock on testnet; ZK Passport on mainnet)
         │
         ▼
    Both proofs submitted to SpectreRegistry.initiateRecovery()
@@ -55,7 +57,6 @@ Owner sends recovery email
 - [Nargo](https://noir-lang.org/docs/getting_started/installation) - Noir compiler
 - [Barretenberg](https://github.com/AztecProtocol/barretenberg) (`bb`) - proof backend
 - [Node.js](https://nodejs.org/) >= 18
-- A [World ID](https://developer.worldcoin.org) app (for human verification)
 
 ## Quick start
 
@@ -63,14 +64,14 @@ Owner sends recovery email
 
 ```bash
 cp .env.example .env
-# Fill in DEPLOYER_PRIVATE_KEY, WORLD_ID_ROUTER, BASESCAN_API_KEY
+# Fill in DEPLOYER_PRIVATE_KEY, DKIM_UPDATER, BASESCAN_API_KEY
 
 cd contracts
 forge install
 forge test  # run tests first
 
 # Deploy to Base Sepolia
-forge script script/Deploy.s.sol \
+forge script scripts/Deploy.s.sol \
   --rpc-url $BASE_SEPOLIA_RPC \
   --broadcast --verify
 ```
@@ -91,7 +92,6 @@ Create `relayer/config.json`:
   "rpcUrl": "https://sepolia.base.org",
   "registryAddress": "0x...",
   "verifierAddress": "0x...",
-  "worldIdRouter": "0x42FF98C4E85212a5D31358ACbFe76a621b784Fac",
   "ownerPrivateKey": "0x...",
   "agentOwnerAddress": ""
 }
@@ -106,37 +106,24 @@ npm run register <your-email@example.com> <timelock-blocks>
 
 This stores `SHA256(email)` on-chain and sets the cancel window.
 
-### 4. Set up World ID UI
-
-```bash
-cd world-id-ui
-npm install
-cp .env.example .env
-# Set VITE_WLD_APP_ID to your World ID app ID
-npm run dev
-```
-
-### 5. Start the prover API (optional)
+### 4. Start the prover API (optional)
 
 ```bash
 cd relayer
-WORLD_ID_RP_ID=rp_... \
-WORLD_ID_SIGNING_KEY=... \
 npm run server
 ```
 
 The server runs on port 3001 and provides:
 
-| Endpoint           | Method | Description                            |
-| ------------------ | ------ | -------------------------------------- |
-| `/prove`           | POST   | Upload `.eml` file → get ZK proof      |
-| `/verify`          | POST   | Verify a proof                         |
-| `/worldid-context` | POST   | Get signed context for World ID widget |
-| `/health`          | GET    | Health check                           |
+| Endpoint  | Method | Description                       |
+| --------- | ------ | --------------------------------- |
+| `/prove`  | POST   | Upload `.eml` file → get ZK proof |
+| `/verify` | POST   | Verify a proof                    |
+| `/health` | GET    | Health check                      |
 
 ## Recovery walkthrough
 
-### Email + World ID recovery
+### Email + Personhood recovery
 
 **Step 1** - Send a recovery email from the registered address:
 
@@ -148,15 +135,15 @@ Body: (anything)
 
 `recovery_key` is the new owner address as a decimal bigint. `nonce` comes from `SpectreRegistry.getRecord(agentOwner).nonce`. The body can be anything your mail client produces (signatures, multipart MIME, etc.) - only the subject is checked. Download the sent email as `.eml`.
 
-**Step 2** - Generate a World ID proof using the `world-id-ui` frontend. Fill in the agent owner address, new owner address, and nonce. Save the output as `worldid-proof.json`.
-
-**Step 3** - Initiate recovery:
+**Step 2** - Initiate recovery:
 
 ```bash
-npm run initiate <path/to/email.eml> <newOwnerAddress> <path/to/worldid-proof.json>
+npm run initiate <path/to/email.eml> <newOwnerAddress>
 ```
 
-**Step 4** - Wait for the timelock to elapse, then execute:
+The CLI generates the DKIM ZK proof from the `.eml` and submits it alongside a per-attempt personhood nullifier. On testnet (`MockPersonhoodAdapter`) the personhood proof is empty bytes; a production adapter (e.g. ZK Passport) would replace both with values from its SDK.
+
+**Step 3** - Wait for the timelock to elapse, then execute:
 
 ```bash
 npm run execute
@@ -191,10 +178,10 @@ This increments the nonce, invalidating any stale guardian votes or proofs.
 
 ## CLI commands
 
-| Command                    | Description                               |
-| -------------------------- | ----------------------------------------- |
-| `npm run register`         | Register agent with email hash + timelock |
-| `npm run initiate`         | Initiate Email+WorldID recovery           |
+| Command                    | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `npm run register`         | Register agent with email hash + timelock  |
+| `npm run initiate`         | Initiate Email + Personhood recovery       |
 | `npm run cancel`           | Cancel pending recovery                   |
 | `npm run execute`          | Execute recovery after timelock           |
 | `npm run check`            | View agent record and recovery status     |
@@ -230,9 +217,9 @@ bb prove -s ultra_honk -b target/spectre.json -w target/spectre.gz \
 `SpectreRegistry.sol` manages agent records and enforces recovery rules:
 
 - **Registration** - `register(emailHash, timelockBlocks)` creates an agent record
-- **Dual verification** - `initiateRecovery()` verifies both the DKIM ZK proof (via UltraHonk verifier) and World ID Semaphore proof (via World ID router)
+- **Dual verification** - `initiateRecovery()` verifies both the DKIM ZK proof (via UltraHonk verifier) and a personhood proof through the agent's chosen `IPersonhoodVerifier` adapter
 - **Timelock** - all recovery modes are staged for a configurable block window (min 10 blocks testnet, 7200 blocks ~24h mainnet)
-- **Replay protection** - nonce increments on cancel/execute; World ID nullifiers are single-use
+- **Replay protection** - nonce increments on cancel/execute; personhood nullifiers are tracked in `usedNullifiers` and remain consumed after `executeRecovery`
 
 Run tests:
 
@@ -245,30 +232,19 @@ forge test -vvv
 
 `SpectreRegistry` is a Transparent proxy; use the **proxy** address. The implementation is upgradeable behind it.
 
-| Contract                       | Address                                      |
-| ------------------------------ | -------------------------------------------- |
-| **SpectreRegistry (proxy)**    | `0xBe53383054Fda41A9F71b8593384144c367b01A1` |
-| SpectreRegistry implementation | `0xf86A09356FaA1E179B559Bd22e81889882acB2D4` |
-| ProxyAdmin                     | `0xcCD55f05F1b6a8269a0cbB3a419858AA8939f8d2` |
-| HonkVerifier                   | `0xc034Dc7e3157C5b08aFB7332058dD68d83df71DF` |
-| DKIMRegistry                   | `0x5239b713F4722fF928E3f08891C364f151F11f73` |
-| PersonhoodRegistry             | `0xa095610B51A638968efB3aD1ecB5Aa2994Afa065` |
-| WorldIDPersonhoodAdapter       | `0xa472a4FA1ed3575244AC50594Ecd418E56D4117b` |
-| World ID Router                | `0x42FF98C4E85212a5D31358ACbFe76a621b784Fac` |
+`SpectreRegistry` is a Transparent proxy; use the **proxy** address. The implementation is upgradeable behind it. The latest deployment lives in `contracts/broadcast/Deploy.s.sol/84532/run-latest.json`.
 
 ## Environment variables
 
 See `.env.example` for the full list. Key variables:
 
-| Variable               | Where              | Description                                |
-| ---------------------- | ------------------ | ------------------------------------------ |
-| `DEPLOYER_PRIVATE_KEY` | `.env`             | Account that deploys contracts             |
-| `WORLD_ID_ROUTER`      | `.env`             | World ID router address for target network |
-| `WORLD_ID_GROUP_ID`    | `.env`             | `1` for Orb-verified                       |
-| `BASESCAN_API_KEY`     | `.env`             | For contract verification on Basescan      |
-| `WORLD_ID_RP_ID`       | relayer env        | Your World ID relying party ID             |
-| `WORLD_ID_SIGNING_KEY` | relayer env        | RP signing key for World ID contexts       |
-| `VITE_WLD_APP_ID`      | `world-id-ui/.env` | World ID app ID from developer portal      |
+| Variable                 | Where  | Description                                                 |
+| ------------------------ | ------ | ----------------------------------------------------------- |
+| `DEPLOYER_PRIVATE_KEY`   | `.env` | Account that deploys contracts                              |
+| `DKIM_UPDATER`           | `.env` | Address allowed to propose/revoke DKIM keys + adapters      |
+| `DKIM_PROPOSAL_TIMELOCK` | `.env` | Seconds between propose() and confirm() (e.g. 86400 = 24h)  |
+| `DEFAULT_TIMELOCK_BLOCKS`| `.env` | Default + minimum recovery cancel window, in blocks         |
+| `BASESCAN_API_KEY`       | `.env` | For contract verification on Basescan                       |
 
 ## License
 

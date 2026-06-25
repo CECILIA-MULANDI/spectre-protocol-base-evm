@@ -6,10 +6,6 @@ services:
     buildCommand: cd relayer && npm install
     startCommand: cd relayer && npm run server
     envVars:
-      - key: WORLD_ID_RP_ID
-        scope: run
-      - key: WORLD_ID_SIGNING_KEY
-        scope: run
       - key: RESEND_API_KEY
         scope: run
       - key: EMAIL_FROM

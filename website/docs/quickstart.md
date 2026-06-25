@@ -140,16 +140,33 @@ After this transaction, the user can recover via email and personhood. Other mod
 Recovery happens in two on-chain steps separated by a timelock. The shape:
 
 ```ts
+import { encodePacked, keccak256 } from "viem";
+
 // Read the current nonce; it increments on every successful or cancelled
 // recovery, so always fetch fresh rather than caching.
 const record = await client.getRecord(agentOwner);
+
+// Personhood inputs are pass-through to the agent's IPersonhoodVerifier.
+// Testnet default is MockPersonhoodAdapter, which ignores `personhoodProof`
+// but the registry still tracks the nullifier. A production adapter (e.g.
+// ZK Passport) would supply both from its SDK output.
+const personhoodProof: `0x${string}` = "0x";
+const personhoodNullifier = BigInt(
+  keccak256(
+    encodePacked(
+      ["address", "address", "uint256", "uint256"],
+      [agentOwner, newOwner, record.nonce, BigInt(Math.floor(Date.now() / 1000))]
+    )
+  )
+);
 
 await client.initiateEmailRecovery({
   eml,                       // Uint8Array of the user's .eml file
   agentOwner,
   newOwner,
   nonce: record.nonce,
-  worldIdProof,              // shape: { root, nullifier_hash, proof[8] }
+  personhoodNullifier,
+  personhoodProof,
 });
 
 // Watch the timelock. The current owner can cancel during this window.
@@ -160,9 +177,9 @@ console.log(`Recovery executes at block ${status.executeAfterBlock}`);
 await client.executeRecovery(agentOwner);
 ```
 
-The two non-trivial inputs are the `.eml` (the user has to produce it from their email provider) and the `worldIdProof` (the user has to generate it in World App, with a signal that binds to the same `(agentOwner, newOwner, nonce)` tuple). Both have exact formatting requirements; the SDK ships helpers for each binding step.
+The non-trivial input is the `.eml` (the user has to produce it from their email provider). The personhood fields are pass-through to whatever adapter the agent registered with; on testnet the mock adapter accepts any non-reused nullifier.
 
-For the full walkthrough including Subject formatting, provider-by-provider `.eml` download instructions, and the World ID integration, see **[Recovering with Email + World ID](/recovering-with-email)**.
+For the full walkthrough including Subject formatting, provider-by-provider `.eml` download instructions, and personhood adapter wiring, see **[Recovering with Email + Personhood](/recovering-with-email)**.
 
 After `executeRecovery`, the agent's `owner` is the new address and `record.nonce` has incremented, invalidating any old proofs.
 
