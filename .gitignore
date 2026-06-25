@@ -9,3 +9,18 @@ circuits/target/
 my-docs/
 *.eml
 *.docx
+
+# Relayer runtime state (SQLite + WAL — notify daemon storage, never commit)
+relayer/state/
+
+# Foundry dry-run simulations (not actual deploys; pure noise)
+contracts/broadcast/**/dry-run/
+
+# Defensive: secret-shaped files that should never appear in a public repo
+*.keystore
+keystore/
+secrets/
+
+# OS junk
+.DS_Store
+Thumbs.db
