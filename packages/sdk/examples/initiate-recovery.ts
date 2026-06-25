@@ -1,4 +1,5 @@
 import { readFile } from "fs/promises"
+import { encodePacked, keccak256 } from "viem"
 import { SpectreClient } from "../src/index.js"
 
 const client = new SpectreClient({
@@ -15,17 +16,27 @@ async function main() {
   const agentOwner = process.env.AGENT_OWNER as `0x${string}`
   const newOwner   = process.env.NEW_OWNER   as `0x${string}`
   const emlPath    = process.env.EML_PATH!
-  const proofPath  = process.env.WORLD_ID_PROOF_PATH!
 
-  const eml         = await readFile(emlPath)
-  const worldIdProof = JSON.parse(await readFile(proofPath, "utf-8"))
+  const eml = await readFile(emlPath)
 
   const record = await client.getRecord(agentOwner)
   const nonce  = record.nonce
 
-  console.log("Signal to use in World ID UI:")
-  console.log(client.computeSignal(agentOwner, newOwner, nonce))
-  console.log()
+  console.log("Recovery signal:", client.computeSignal(agentOwner, newOwner, nonce))
+
+  // Testnet deploys use MockPersonhoodAdapter, which ignores `personhoodProof`
+  // but the registry still rejects nullifier reuse. Derive a fresh value per
+  // attempt; a production adapter (e.g. ZK Passport) would supply both fields
+  // from its SDK output.
+  const personhoodProof: `0x${string}` = "0x"
+  const personhoodNullifier = BigInt(
+    keccak256(
+      encodePacked(
+        ["address", "address", "uint256", "uint256"],
+        [agentOwner, newOwner, nonce, BigInt(Math.floor(Date.now() / 1000))]
+      )
+    )
+  )
 
   console.log("Initiating email recovery...")
   const { hash } = await client.initiateEmailRecovery({
@@ -33,7 +44,8 @@ async function main() {
     agentOwner,
     newOwner,
     nonce,
-    worldIdProof,
+    personhoodNullifier,
+    personhoodProof,
   })
   console.log("TX hash:", hash)
 

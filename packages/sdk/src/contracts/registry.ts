@@ -1,7 +1,6 @@
 import {
   createPublicClient,
   createWalletClient,
-  encodeAbiParameters,
   http,
   sha256,
   stringToBytes,
@@ -15,7 +14,6 @@ import type {
   Address,
   AgentRecord,
   RecoveryStatus,
-  WorldIdProof,
   WatchRecoveryOptions,
   Unwatch,
   RecoveryInitiatedEvent,
@@ -90,11 +88,9 @@ export class RegistryClient {
     newOwner: Address,
     emailProof: `0x${string}`,
     emailPublicInputs: `0x${string}`[],
-    worldIdProof: WorldIdProof
+    personhoodNullifier: bigint,
+    personhoodProof: `0x${string}`
   ): Promise<Hash> {
-    const { nullifier, personhoodProof } =
-      encodeWorldIdPersonhoodProof(worldIdProof);
-
     return this.walletClient.writeContract({
       address: this.registryAddress,
       abi: REGISTRY_ABI,
@@ -104,7 +100,7 @@ export class RegistryClient {
         newOwner,
         emailProof,
         emailPublicInputs,
-        nullifier,
+        personhoodNullifier,
         personhoodProof,
       ],
       account: this.walletClient.account!,
@@ -349,23 +345,4 @@ export class RegistryClient {
   computeEmailHash(email: string): `0x${string}` {
     return sha256(stringToBytes(email.toLowerCase().trim()));
   }
-}
-
-/// Encode a World ID proof into the opaque bytes the on-chain
-/// WorldIDPersonhoodAdapter expects: abi.encode(uint256 root, uint256[8] proof).
-/// The `nullifier` is returned separately because SpectreRegistry tracks it
-/// in `usedNullifiers` outside the adapter call.
-function encodeWorldIdPersonhoodProof(
-  w: WorldIdProof
-): { nullifier: bigint; personhoodProof: `0x${string}` } {
-  const root = BigInt(w.root);
-  const nullifier = BigInt(w.nullifier_hash);
-  const proof = w.proof.map((p) => BigInt(p)) as unknown as readonly [
-    bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint
-  ];
-  const personhoodProof = encodeAbiParameters(
-    [{ type: "uint256" }, { type: "uint256[8]" }],
-    [root, proof]
-  );
-  return { nullifier, personhoodProof };
 }

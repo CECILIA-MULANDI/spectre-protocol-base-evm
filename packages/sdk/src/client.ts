@@ -3,13 +3,11 @@ import { RegistryClient } from "./contracts/registry.js";
 import { HostedProver } from "./provers/hosted.js";
 import { BrowserProver } from "./provers/browser.js";
 import { NotifyClient } from "./notify.js";
-import { WorldIdClient } from "./worldid.js";
 import type { ProverBackend } from "./provers/index.js";
 import type {
   Address,
   AgentRecord,
   RecoveryStatus,
-  WorldIdProof,
   SpectreClientConfig,
   TxResult,
   WatchRecoveryOptions,
@@ -23,9 +21,6 @@ export class SpectreClient {
 
   /** Hosted-webhook subscription helpers. RPC watching is on the client directly via {@link watchRecovery}. */
   readonly notify: NotifyClient;
-
-  /** World ID helpers for the Email + Personhood recovery flow (rp_context fetch). */
-  readonly worldId: WorldIdClient;
 
   constructor(config: SpectreClientConfig) {
     if (!config.privateKey) {
@@ -51,7 +46,6 @@ export class SpectreClient {
       (config.prover.type === "hosted" ? config.prover.url : undefined);
 
     this.notify = new NotifyClient(() => this.relayerUrl, config.privateKey);
-    this.worldId = new WorldIdClient(() => this.relayerUrl);
   }
 
   // Email-ownership confirmation (optional UX layer; protocol does not enforce)
@@ -135,14 +129,24 @@ export class SpectreClient {
     return { hash, receipt, emailHash };
   }
 
-  // Email + World ID recovery
+  // Email + Personhood recovery
+  //
+  // `personhoodNullifier` and `personhoodProof` are pass-through to the
+  // on-chain adapter: the registry tracks the nullifier in `usedNullifiers`
+  // and forwards `personhoodProof` (opaque bytes) to the agent's chosen
+  // IPersonhoodVerifier. Format both as required by your adapter:
+  //   - MockPersonhoodAdapter (testnet default): any non-reused nullifier,
+  //     proof = "0x".
+  //   - Production adapters (e.g. ZK Passport): nullifier = the adapter's
+  //     identity-derived value, proof = abi.encode(adapter's params struct).
 
   async initiateEmailRecovery(params: {
     eml: Uint8Array;
     agentOwner: Address;
     newOwner: Address;
     nonce: bigint;
-    worldIdProof: WorldIdProof;
+    personhoodNullifier: bigint;
+    personhoodProof: `0x${string}`;
   }) {
     const { proof, publicInputs } = await this.prover.prove({
       eml: params.eml,
@@ -162,7 +166,8 @@ export class SpectreClient {
       params.newOwner,
       emailProof,
       emailPublicInputs,
-      params.worldIdProof
+      params.personhoodNullifier,
+      params.personhoodProof
     );
     const receipt = await this.registry.waitForTx(hash);
     return { hash, receipt };

@@ -6,12 +6,6 @@ export type ProofResult = {
   fromAddress: string; // e.g. "alice@gmail.com"
 };
 
-export type WorldIdProof = {
-  root: string;
-  nullifier_hash: string;
-  proof: string[]; // uint256[8] as decimal strings
-};
-
 export type RecoveryMode = "EmailPersonhood" | "Backup" | "Social";
 
 export type RecoveryStatus = {

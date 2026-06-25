@@ -4,11 +4,11 @@ TypeScript SDK for [Spectre Protocol](https://github.com/CECILIA-MULANDI/spectre
 
 Spectre lets an agent owner recover access to their on-chain identity through one of three modes:
 
-- **Email + World ID** - prove control of a registered email address (via a Noir circuit over a DKIM-signed `.eml`) plus a World ID proof of personhood.
+- **Email + Personhood** - prove control of a registered email address (via a Noir circuit over a DKIM-signed `.eml`) plus a personhood proof from the agent's configured `IPersonhoodVerifier` adapter.
 - **Backup wallet** - recover to a pre-designated backup address.
 - **Social / guardians** - threshold approval from a list of guardian addresses.
 
-All recovery paths run through a configurable timelock before they can be executed.
+All recovery paths run through a configurable timelock before they can be executed. Personhood adapters are pluggable through `PersonhoodRegistry`: the testnet deploy uses `MockPersonhoodAdapter` for fast dev iteration, and a production adapter (ZK Passport is the next planned integration) slots in via a governed propose/confirm.
 
 ## Install
 
@@ -114,36 +114,45 @@ See `relayer/src/server.ts` in the main repo to run your own.
 
 ## Recovery flows
 
-### Email + World ID
+### Email + Personhood
 
 ```ts
 import { readFile } from "fs/promises";
+import { encodePacked, keccak256 } from "viem";
 
 const eml = await readFile("recovery.eml");
-const worldIdProof = JSON.parse(await readFile("worldid.json", "utf-8"));
-
 const record = await client.getRecord(agentOwner);
 
 // Build the exact Subject line the user must put on the recovery email.
 // Format: `spectre:<newOwnerAsDecimalUint256>:<nonce>`.
 const subject = client.prepareRecoverySubject(newOwner, record.nonce);
 
-// Compute the signal you need to pass into the World ID widget.
-const signal = client.computeSignal(agentOwner, newOwner, record.nonce);
-
-// Fetch a signed rp_context from the relayer for the IDKit v4 widget.
-const rpContext = await client.worldId.getContext();
+// Personhood inputs are pass-through to the agent's IPersonhoodVerifier.
+// The values below match MockPersonhoodAdapter (testnet default), which
+// ignores `personhoodProof` but the registry still tracks the nullifier to
+// prevent replay. A production adapter (e.g. ZK Passport) would replace both
+// with values from its SDK output.
+const personhoodProof: `0x${string}` = "0x";
+const personhoodNullifier = BigInt(
+  keccak256(
+    encodePacked(
+      ["address", "address", "uint256", "uint256"],
+      [agentOwner, newOwner, record.nonce, BigInt(Math.floor(Date.now() / 1000))]
+    )
+  )
+);
 
 const { hash } = await client.initiateEmailRecovery({
   eml,
   agentOwner,
   newOwner,
   nonce: record.nonce,
-  worldIdProof,
+  personhoodNullifier,
+  personhoodProof,
 });
 ```
 
-See the [full walkthrough](https://docs.spectreprotocol.xyz/recovering-with-email) for provider-by-provider `.eml` download instructions and the World ID widget wiring.
+See the [full walkthrough](https://docs.spectreprotocol.xyz/recovering-with-email) for provider-by-provider `.eml` download instructions and the personhood adapter wiring.
 
 ### Backup wallet
 
@@ -220,7 +229,7 @@ The relayer indexes the chain and POSTs a `RecoveryAlert` JSON to your endpoint 
 | `register(email, timelockBlocks)` | Register an agent under the caller's address. |
 | `setBackupWallet(addr)` | Configure the backup-wallet recovery path. |
 | `setGuardians(addrs, threshold)` | Configure the social recovery path. |
-| `initiateEmailRecovery(params)` | Start an email + World ID recovery. |
+| `initiateEmailRecovery(params)` | Start an email + personhood recovery. |
 | `initiateBackupRecovery(owner, new)` | Start a backup-wallet recovery. |
 | `approveGuardianRecovery(owner, new)` | Cast a guardian approval. |
 | `cancelRecovery(owner)` | Owner-only: abort a pending recovery. |
@@ -229,9 +238,8 @@ The relayer indexes the chain and POSTs a `RecoveryAlert` JSON to your endpoint 
 | `getRecoveryStatus(owner)` | Read pending recovery state and mode. |
 | `getGuardians(owner)` | List configured guardians. |
 | `getApprovalCount(owner, new)` | Current approval count for a candidate new owner. |
-| `computeSignal(owner, new, nonce)` | Compute the World ID signal for a recovery. |
+| `computeSignal(owner, new, nonce)` | Compute the signal a personhood adapter binds proofs to (`keccak256(agentOwner, newOwner, nonce)`). |
 | `prepareRecoverySubject(new, nonce)` | Build the exact email Subject (`spectre:<bigint>:<nonce>`) bound to a recovery. |
-| `worldId.getContext()` | Fetch a signed `rp_context` from the relayer for the IDKit v4 widget. |
 | `watchRecovery({...})` | Subscribe to `RecoveryInitiated` / `Cancelled` / `Executed` over RPC. Returns an unwatch fn. |
 | `notify.subscribe({...})` | Register a webhook with the hosted relayer (signed). |
 | `notify.getSubscription(owner)` | Look up the current webhook subscription. |

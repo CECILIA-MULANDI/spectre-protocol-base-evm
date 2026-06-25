@@ -28,7 +28,6 @@
     "account-recovery",
     "base",
     "noir",
-    "world-id",
     "ai-agents"
   ],
   "license": "MIT",
