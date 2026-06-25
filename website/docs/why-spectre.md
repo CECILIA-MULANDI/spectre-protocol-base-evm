@@ -22,7 +22,7 @@ Spectre ships all of it as one cohesive system. This page is the inventory of wh
 | **`SpectreRegistry`** | The on-chain contract that holds each agent's record and rotates `owner` on successful recovery. Deployed behind a Transparent proxy with governed upgrades. |
 | **Noir circuit + Honk verifier** | The ZK circuit that verifies an RSA-2048 DKIM signature and binds the proof to a specific `(newOwner, nonce)`. The deployed verifier has a pinned, verifiable VK. |
 | **`DKIMRegistry`** | A governed list of mail-provider RSA keys with propose/confirm timelocks and instant revocation. Spectre's job, not yours, to keep current as Gmail, Outlook, Proton, and FastMail rotate their keys. |
-| **`PersonhoodRegistry`** | An adapter framework with propose/confirm governance. World ID is the default; new adapters (zkPassport, BrightID) can be approved without redeploying the protocol. |
+| **`PersonhoodRegistry`** | An adapter framework with propose/confirm governance. Testnet runs `MockPersonhoodAdapter`; mainnet will run a ZK Passport adapter. New adapters (Self.xyz, BrightID) can be approved without redeploying the protocol. |
 | **TypeScript SDK** | `@spectre-protocol/sdk` for register, recover, cancel, execute, read, and event subscription. Browser-side or hosted prover. |
 | **Hosted prover + email relayer** | Optional service that parses `.eml` files, generates ZK proofs, and sends recovery-email challenges. Run your own or use the Spectre-hosted instance. |
 

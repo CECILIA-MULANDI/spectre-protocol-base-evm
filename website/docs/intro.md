@@ -51,7 +51,7 @@ Every successful recovery passes through a **timelock**. The current owner can c
 
 - **Not an account abstraction wallet.** Spectre rotates the owner key. What the owner *is* (an EOA, a smart account, the controller of an ERC-4337 account) is up to you. A preview minimal account (`SpectreAccount`) ships with the repo today; the production ERC-4337 / ERC-7579 modules are the next milestone.
 - **Not gas-sponsored.** Users pay their own gas to register and recover. v1 deliberately skips sponsored transactions. See [Threat model](/threat-model#deliberate-non-scopes).
-- **Not opinionated about personhood.** Spectre uses World ID as a deploy-time default, but new personhood adapters (zkPassport, BrightID, etc.) can be added without contract changes via a governed propose/confirm flow.
+- **Not opinionated about personhood.** Spectre's `IPersonhoodVerifier` interface is the integration point; the testnet deploy uses `MockPersonhoodAdapter` for fast dev iteration, mainnet will use ZK Passport, and new adapters (Self.xyz, BrightID, etc.) can be added without contract changes via a governed propose/confirm flow.
 
 ## Current implementation
 

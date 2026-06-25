@@ -16,7 +16,7 @@ You need this page if **a person who lost their owner key needs to recover their
 ## The flow at a glance
 
 1. Look up the agent's current `nonce` on chain.
-2. The user sends themselves an email with an exact, machine-parseable Subject that binds the recovery to a `(newOwner, nonce)` pair.
+2. The user sends an email from their registered email address to any other inbox they can access, with an exact, machine-parseable Subject that binds the recovery to a `(newOwner, nonce)` pair.
 3. The user downloads that email as a `.eml` file from their provider.
 4. Your code produces a personhood proof for the agent's configured adapter.
 5. Your code submits `.eml` + personhood inputs on-chain via `client.initiateEmailRecovery(...)`.
@@ -57,7 +57,7 @@ const subject = client.prepareRecoverySubject(newOwner, nonce);
 // e.g. "spectre:1389375924817439871938:1"
 ```
 
-The user then sends an email **from their registered email address** (the one whose sha256 was stored at `register()` time), with this exact string as the Subject. The body is ignored by the circuit. The recipient is also ignored, but sending to themselves is the simplest, since they need to download the email anyway.
+The user then sends an email **from their registered email address** (the one whose sha256 was stored at `register()` time), with this exact string as the Subject. The body is ignored by the circuit. The recipient is also ignored by the protocol, but it must be a **different inbox** the user can access. Gmail-to-Gmail routing can stay internal to Google's servers, in which case the message never receives an outbound DKIM signature and the proof will fail. Any other address (a second Gmail account, Outlook, ProtonMail, work email) works.
 
 A minimal UI prompt looks like:
 

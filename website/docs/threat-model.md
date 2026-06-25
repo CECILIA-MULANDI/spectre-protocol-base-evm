@@ -23,7 +23,7 @@ Trusting the verifier means trusting:
 
 ### The default personhood adapter
 
-Spectre uses a default `IPersonhoodVerifier` (today: a World ID adapter) for proofs of human-ness. The default address is set at `initialize` and can only be replaced via a proxy upgrade.
+Spectre uses a default `IPersonhoodVerifier` for proofs of human-ness. On the Base Sepolia testnet deploy this is `MockPersonhoodAdapter` (no real personhood check, clearly labeled as testnet-only). The mainnet deploy will use ZK Passport via `ZKPassportPersonhoodAdapter`. The default address is set at `initialize` and can only be replaced via a proxy upgrade.
 
 A user-chosen adapter (via `registerWith(...)`) must be approved in the `PersonhoodRegistry`. See [Recovery modes](/recovery-modes#mode-1-email--personhood). New adapters go through a public propose/confirm timelock before becoming usable.
 

@@ -15,10 +15,10 @@ Spectre has three recovery modes. They aren't ranked; they are **alternative pat
 | --- | --- |
 | **Armed by** | `client.register(email)` |
 | **Triggered by** | Anyone holding the recovery email plus a fresh personhood proof |
-| **Proof required** | ZK proof of DKIM-signed email and personhood proof (default: World ID) |
+| **Proof required** | ZK proof of DKIM-signed email and personhood proof (testnet: `MockPersonhoodAdapter`; mainnet: ZK Passport) |
 | **On-chain call** | `initiateRecovery(...)` |
 
-The user sends themselves a recovery email with subject `spectre:<newOwnerAsBigInt>:<nonce>`. The relayer (or browser prover) generates a ZK proof that the email was signed by the email provider's DKIM key, that it came from the registered email address, and that the subject contains the binding to `newOwner` and `nonce`. The personhood proof binds the recovery to a real human, gated by whatever adapter the agent registered with.
+The user sends an email from their registered email address to any other inbox they can access, with subject `spectre:<newOwnerAsBigInt>:<nonce>`. The recipient is not checked by the protocol, but the email must actually leave the user's mail provider so the outbound DKIM signature is applied. The relayer (or browser prover) generates a ZK proof that the email was signed by the email provider's DKIM key, that it came from the registered email address, and that the subject contains the binding to `newOwner` and `nonce`. The personhood proof binds the recovery to a real human, gated by whatever adapter the agent registered with.
 
 Both proofs are required in the same transaction. Email alone would be weak (DKIM key rotation, compromised mail account). Personhood alone would be weak (Sybil-resistant doesn't mean *this specific person's account*). Combined, they say "this is a real human AND they control the registered email."
 
