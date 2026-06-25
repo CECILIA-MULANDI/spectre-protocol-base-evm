@@ -9,6 +9,7 @@ const sidebars: SidebarsConfig = {
     "recovering-with-email",
     "monitoring",
     "threat-model",
+    "roadmap",
   ],
 };
 
