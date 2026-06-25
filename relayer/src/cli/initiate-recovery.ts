@@ -5,10 +5,18 @@
  *   1. Parse email, fetch DKIM key, build witness
  *   2. Generate UltraHonk proof via nargo + bb
  *   3. Verify proof off-chain
- *   4. Call SpectreRegistry.initiateRecovery() with email proof + World ID proof
+ *   4. Call SpectreRegistry.initiateRecovery() with email proof + personhood proof
+ *
+ * Personhood: the testnet deploy uses MockPersonhoodAdapter which ignores its
+ * proofData. We still need a fresh, non-reused personhoodNullifier per attempt
+ * (SpectreRegistry tracks usedNullifiers regardless of which adapter validated
+ * the proof). We derive one from (agent, newOwner, nonce, block.timestamp) so
+ * repeated demos don't trip NullifierAlreadyUsed. A production adapter (e.g.
+ * ZK Passport) would supply both proofData and a real identity-derived
+ * nullifier from its SDK output.
  */
 import { readFile } from "fs/promises";
-import { encodeAbiParameters } from "viem";
+import { encodePacked, keccak256 } from "viem";
 import { loadConfig } from "./config.js";
 import { buildClients } from "./network.js";
 import { REGISTRY_ABI } from "./abi.js";
@@ -17,9 +25,9 @@ import { fetchDKIMPublicKey } from "../email/dkim.js";
 import { buildWitness } from "../prover/witness.js";
 import { generateProof, verifyProof } from "../prover/prover.js";
 
-const [emlPath, newOwner, worldIdPath] = process.argv.slice(2);
-if (!emlPath || !newOwner || !worldIdPath) {
-  console.error("error: email path, new-owner address, and worldid-proof.json are required");
+const [emlPath, newOwner] = process.argv.slice(2);
+if (!emlPath || !newOwner) {
+  console.error("error: email path and new-owner address are required");
   process.exit(1);
 }
 
@@ -73,18 +81,24 @@ const publicInputs = Array.from(
         .toString("hex")) as `0x${string}`
 );
 
-// Load World ID proof (generated externally via World ID SDK or World App)
-const worldId = JSON.parse(await readFile(worldIdPath, "utf-8"));
+// MockPersonhoodAdapter accepts any input — pass empty bytes.
+const personhoodProof = "0x" as `0x${string}`;
 
-// Encode the World ID proof into the opaque bytes the WorldIDPersonhoodAdapter
-// decodes: abi.encode(uint256 root, uint256[8] proof). The nullifier is passed
-// alongside because SpectreRegistry tracks it outside the adapter call.
-const wIdProof = (worldId.proof as string[]).map((p) => BigInt(p)) as unknown as readonly [
-  bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint
-];
-const personhoodProof = encodeAbiParameters(
-  [{ type: "uint256" }, { type: "uint256[8]" }],
-  [BigInt(worldId.root), wIdProof]
+// Fresh per-attempt nullifier (see top-of-file comment). The agent + new owner
+// + nonce alone would collide if a cancel happens before the timestamp ticks,
+// so block.timestamp via Date.now() keeps each attempt distinct.
+const personhoodNullifier = BigInt(
+  keccak256(
+    encodePacked(
+      ["address", "address", "uint256", "uint256"],
+      [
+        config.agentOwnerAddress,
+        newOwner as `0x${string}`,
+        nonce,
+        BigInt(Math.floor(Date.now() / 1000)),
+      ]
+    )
+  )
 );
 
 const hash = await walletClient.writeContract({
@@ -96,7 +110,7 @@ const hash = await walletClient.writeContract({
     newOwner as `0x${string}`,
     proofBytes,
     publicInputs,
-    BigInt(worldId.nullifier_hash),
+    personhoodNullifier,
     personhoodProof,
   ],
 });

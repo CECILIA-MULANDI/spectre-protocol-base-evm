@@ -22,7 +22,6 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import { signRequest } from "@worldcoin/idkit-server";
 import { parseEmail } from "./email/parser.js";
 import { fetchDKIMPublicKey } from "./email/dkim.js";
 import {
@@ -39,9 +38,6 @@ import { startWatcher } from "./notify/watcher.js";
 import { startDispatcher } from "./notify/dispatcher.js";
 import { openDb, DEFAULT_DB_PATH } from "./notify/db.js";
 import { setDb as setSubsDb } from "./notify/subscriptions.js";
-
-const WORLD_ID_RP_ID     = process.env.WORLD_ID_RP_ID ?? "";
-const WORLD_ID_SIGNING_KEY = process.env.WORLD_ID_SIGNING_KEY ?? "";
 
 const app = express();
 app.use(cors());
@@ -137,22 +133,6 @@ app.post("/verify", proverLimit, async (req, res) => {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });
   }
-});
-
-// Returns a signed rp_context for IDKit v4. Called by the world-id-ui before opening the widget.
-app.post("/worldid-context", proverLimit, (_req, res) => {
-  if (!WORLD_ID_RP_ID || !WORLD_ID_SIGNING_KEY) {
-    res.status(500).json({ error: "WORLD_ID_RP_ID and WORLD_ID_SIGNING_KEY must be set" });
-    return;
-  }
-  const sig = signRequest({ signingKeyHex: WORLD_ID_SIGNING_KEY, action: "spectre-recovery" });
-  res.json({
-    rp_id:      WORLD_ID_RP_ID,
-    nonce:      sig.nonce,
-    created_at: sig.createdAt,
-    expires_at: sig.expiresAt,
-    signature:  sig.sig,
-  });
 });
 
 // Email-confirmation challenge endpoints. Per-IP rate limit at the bucket

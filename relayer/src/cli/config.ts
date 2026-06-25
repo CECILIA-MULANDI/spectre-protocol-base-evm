@@ -9,7 +9,6 @@ export type Config = {
   rpcUrl: string;
   registryAddress: `0x${string}`;
   verifierAddress: `0x${string}`;
-  worldIdRouter: `0x${string}`;
   dkimRegistryAddress?: `0x${string}`;
   // DEPRECATED plaintext fallback. Prefer SPECTRE_OWNER_KEY or SPECTRE_KEYSTORE
   // (see src/cli/signer.ts). Optional: omit it once an env signer is configured.
