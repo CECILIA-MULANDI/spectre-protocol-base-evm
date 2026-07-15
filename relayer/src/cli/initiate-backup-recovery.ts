@@ -2,8 +2,9 @@
  * Initiate a backup-wallet recovery for an agent.
  *
  * Must be called from the backup wallet registered for the agent.
- * Set ownerPrivateKey in config.json to the backup wallet's private key,
- * or override via OWNER_PRIVATE_KEY env var.
+ * Provide the backup wallet's private key via SPECTRE_OWNER_KEY env var
+ * (recommended, see signer.ts) or as ownerPrivateKey in config.json
+ * (deprecated, plaintext on disk).
  */
 import { loadConfig } from "./config.js";
 import { buildClients } from "./network.js";
@@ -32,20 +33,15 @@ const hash = await walletClient.writeContract({
 console.log("tx submitted:", hash);
 await publicClient.waitForTransactionReceipt({ hash });
 
-const status = (await publicClient.readContract({
+const [, , executeAfterBlock] = (await publicClient.readContract({
   address: config.registryAddress,
   abi: REGISTRY_ABI,
   functionName: "recoveryStatus",
   args: [agentOwner as `0x${string}`],
-})) as unknown as {
-  pending: boolean;
-  pendingOwner: `0x${string}`;
-  executeAfterBlock: bigint;
-  mode: number;
-};
+})) as readonly [boolean, `0x${string}`, bigint, number];
 
 console.log(
   "backup recovery pending. executable after block:",
-  status.executeAfterBlock.toString()
+  executeAfterBlock.toString()
 );
 console.log("owner can cancel within the timelock window.");
