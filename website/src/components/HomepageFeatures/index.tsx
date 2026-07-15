@@ -32,8 +32,8 @@ const FeatureList: FeatureItem[] = [
     title: "Pluggable personhood",
     description: (
       <>
-        World ID today, zkPassport or BrightID tomorrow. Adapters are added via
-        a governed propose/confirm flow, with no contract upgrade required.
+        Mock adapter today on testnet, zkPassport or BrightID next. Adapters are
+        added via a governed propose/confirm flow, with no contract upgrade required.
       </>
     ),
   },
