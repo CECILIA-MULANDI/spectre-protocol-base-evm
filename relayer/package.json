@@ -13,6 +13,7 @@
     "approve-guardian": "tsx src/cli/approve-guardian-recovery.ts",
     "check": "tsx src/cli/check-state.ts",
     "recover-link": "tsx src/cli/recover-link.ts",
+    "fund-wallet": "tsx src/cli/fund-wallet.ts",
     "subscribe": "tsx src/cli/subscribe.ts",
     "watcher": "tsx src/notify/run-watcher.ts",
     "server": "tsx src/server.ts",
