@@ -13,6 +13,7 @@
 const RECOVERY_MODE_NAMES = ["None", "EmailPersonhood", "Social", "Backup"] as const;
 
 export type RecoveryAlert = {
+  content: string; // human-readable summary; Discord/Slack render this
   type: "RecoveryInitiated";
   agentOwner: `0x${string}`;
   newOwner: `0x${string}`;
@@ -25,6 +26,7 @@ export type RecoveryAlert = {
 };
 
 export type AccountActivityAlert = {
+  content: string; // human-readable summary; Discord/Slack render this
   type: "AccountActivity";
   agentOwner: `0x${string}`;
   account: `0x${string}`;
@@ -53,7 +55,12 @@ export function buildAccountAlert(args: {
   blockNumber: bigint;
   chainId: number;
 }): AccountActivityAlert {
+  const shortAccount = `${args.account.slice(0, 6)}...${args.account.slice(-4)}`;
+  const shortTarget = `${args.target.slice(0, 6)}...${args.target.slice(-4)}`;
   return {
+    content:
+      `[Spectre] SpectreAccount ${shortAccount} executed a call to ${shortTarget} ` +
+      `(value ${args.value.toString()} wei). If this was not you, initiate a recovery now.`,
     type: "AccountActivity",
     agentOwner: args.agentOwner,
     account: args.account,
@@ -65,7 +72,7 @@ export function buildAccountAlert(args: {
     note:
       `SpectreAccount ${args.account} executed a call to ${args.target} ` +
       `(value ${args.value.toString()} wei). If you did not authorize this, ` +
-      `initiate a recovery now — once it is pending the account freezes.`,
+      `initiate a recovery now, once it is pending the account freezes.`,
   };
 }
 
@@ -79,7 +86,13 @@ export function buildAlert(args: {
   chainId: number;
 }): RecoveryAlert {
   const modeName = RECOVERY_MODE_NAMES[args.mode] ?? "None";
+  const shortOwner = `${args.agentOwner.slice(0, 6)}...${args.agentOwner.slice(-4)}`;
+  const shortNewOwner = `${args.newOwner.slice(0, 6)}...${args.newOwner.slice(-4)}`;
   return {
+    content:
+      `[Spectre] Recovery initiated on agent ${shortOwner}. Mode: ${modeName}. ` +
+      `New owner: ${shortNewOwner}. Cancel before block ${args.executeAfterBlock.toString()} ` +
+      `if this was not you.`,
     type: "RecoveryInitiated",
     agentOwner: args.agentOwner,
     newOwner: args.newOwner,

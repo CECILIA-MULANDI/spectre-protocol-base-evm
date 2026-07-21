@@ -20,6 +20,10 @@ test("buildAlert produces the expected serializable shape", () => {
   assert.equal(alert.blockNumber, "123");
   assert.equal(alert.chainId, 84532);
   assert.match(alert.cancelInstructions, /cancelRecovery\(0xaaaa/);
+  // content is what chat sinks (Discord, Slack) render as the visible message
+  assert.match(alert.content, /\[Spectre\] Recovery initiated/);
+  assert.match(alert.content, /Mode: EmailPersonhood/);
+  assert.match(alert.content, /Cancel before block 9000000/);
   // Alert must round-trip through JSON unchanged.
   assert.deepEqual(JSON.parse(JSON.stringify(alert)), alert);
 });
@@ -53,6 +57,9 @@ test("buildAccountAlert produces a JSON-safe AccountActivity shape", () => {
   assert.equal(alert.value, "5000000000000000000"); // bigint stringified
   assert.equal(alert.blockNumber, "777");
   assert.match(alert.note, /initiate a recovery/);
+  // content is what chat sinks render as the visible message
+  assert.match(alert.content, /\[Spectre\] SpectreAccount/);
+  assert.match(alert.content, /initiate a recovery/);
   assert.deepEqual(JSON.parse(JSON.stringify(alert)), alert);
 });
 
