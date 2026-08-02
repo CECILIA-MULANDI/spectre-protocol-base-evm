@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectre &middot; Personhood Recovery Harness</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0A0E1A;
+      --bg2: #111827;
+      --bg3: #1C2B40;
+      --text: #E8ECF4;
+      --text2: #6B8299;
+      --accent: #00C9A7;
+      --border: rgba(255, 255, 255, 0.1);
+      --error: #FF7A6E;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 48px 24px;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text2);
+      margin-bottom: 32px;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
+
+    section {
+      margin-bottom: 32px;
+    }
+
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: var(--accent);
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text2);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13px;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .output {
+      padding: 14px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      word-break: break-all;
+      color: var(--text);
+    }
+
+    .output.empty {
+      color: var(--text2);
+      font-style: italic;
+    }
+
+    .snippet {
+      padding: 14px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      color: var(--text);
+      overflow-x: auto;
+    }
+
+    .note {
+      color: var(--text2);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .error {
+      color: var(--error);
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .row label {
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Personhood recovery harness</h1>
+    <p class="subtitle">
+      Assembles the exact bytes a Spectre <span class="mono">initiateRecovery</span> call needs
+      when the personhood adapter is <span class="mono">ZKPassportAdapter</span>. Testnet
+      harness, not a product UI.
+    </p>
+
+    <section>
+      <h2>1. Recovery inputs</h2>
+      <div class="field">
+        <label for="agentOwner">Agent owner (record key)</label>
+        <input id="agentOwner" type="text" placeholder="0x..." />
+      </div>
+      <div class="field">
+        <label for="newOwner">New owner (rotation target)</label>
+        <input id="newOwner" type="text" placeholder="0x..." />
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label for="nonce">Nonce</label>
+          <input id="nonce" type="text" placeholder="0" />
+        </div>
+        <div class="field" style="flex:1">
+          <label for="chainSlug">Chain slug (ZK Passport SDK)</label>
+          <input id="chainSlug" type="text" placeholder="base-sepolia" value="base-sepolia" />
+        </div>
+        <div class="field" style="flex:1">
+          <label for="scope">Scope (Spectre-wide constant)</label>
+          <input id="scope" type="text" value="spectre-recovery-v1" />
+        </div>
+      </div>
+      <button id="compute">Compute signal</button>
+      <button id="clear" class="secondary">Clear</button>
+    </section>
+
+    <section>
+      <h2>2. Signal (for cross-check)</h2>
+      <div id="signalOut" class="output empty">Signal will appear here once inputs are filled.</div>
+      <p class="note">
+        Contract equivalent:
+        <span class="mono">uint256(keccak256(abi.encode(agentOwner, newOwner, nonce)))</span>.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. ZK Passport SDK snippet</h2>
+      <p class="note" style="margin-bottom:10px">
+        Run this in a browser environment (or the ZK Passport dashboard playground) to
+        produce the proof. The <span class="mono">bind()</span> calls MUST match this
+        snippet byte-for-byte or the on-chain adapter reverts
+        <span class="mono">SignalMismatch</span>.
+      </p>
+      <div id="snippetOut" class="snippet">Fill in the inputs above, then click "Compute signal" to see the snippet.</div>
+    </section>
+
+    <section>
+      <h2>4. Package the proof for on-chain submission</h2>
+      <p class="note" style="margin-bottom:10px">
+        Paste the <span class="mono">proofs</span> object from the ZK Passport SDK's
+        <span class="mono">onResult</span> callback (JSON). Paste the
+        <span class="mono">uniqueIdentifier</span> hex string separately.
+      </p>
+      <div class="field">
+        <label for="proofJson">proofs (JSON, must match ProofVerificationParams shape)</label>
+        <textarea id="proofJson" placeholder='{ "version": "0x...", "proofVerificationData": { ... }, "committedInputs": "0x...", "serviceConfig": { ... } }'></textarea>
+      </div>
+      <div class="field">
+        <label for="uniqueId">uniqueIdentifier (bytes32 hex)</label>
+        <input id="uniqueId" type="text" placeholder="0x..." />
+      </div>
+      <button id="pack">Package for initiateRecovery</button>
+    </section>
+
+    <section>
+      <h2>5. Submission arguments</h2>
+      <div class="field">
+        <label>personhoodProof (bytes, pass to initiateRecovery)</label>
+        <div id="proofDataOut" class="output empty">Package the proof to see the bytes.</div>
+      </div>
+      <div class="field">
+        <label>personhoodNullifier (uint256, pass to initiateRecovery)</label>
+        <div id="nullifierOut" class="output empty">Package the proof to see the nullifier.</div>
+      </div>
+      <p class="note">
+        Once both fields are populated, feed them into your CLI or SDK call to
+        <span class="mono">SpectreRegistry.initiateRecovery(...)</span> along with the
+        email DKIM proof produced by the separate email harness.
+      </p>
+    </section>
+  </div>
+
+  <script type="module" src="./demo/bundle.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const signalOut = $("signalOut");
+    const snippetOut = $("snippetOut");
+    const proofDataOut = $("proofDataOut");
+    const nullifierOut = $("nullifierOut");
+
+    function reset(el, msg) {
+      el.classList.add("empty");
+      el.textContent = msg;
+    }
+    function fill(el, msg) {
+      el.classList.remove("empty");
+      el.classList.remove("error");
+      el.textContent = msg;
+    }
+    function error(el, msg) {
+      el.classList.remove("empty");
+      el.classList.add("error");
+      el.textContent = msg;
+    }
+
+    function readInputs() {
+      const agentOwner = $("agentOwner").value.trim();
+      const newOwner = $("newOwner").value.trim();
+      const nonceRaw = $("nonce").value.trim();
+      const chainSlug = $("chainSlug").value.trim();
+      const scope = $("scope").value.trim();
+      if (!agentOwner || !newOwner || !nonceRaw) {
+        throw new Error("agentOwner, newOwner, and nonce are required");
+      }
+      const nonce = BigInt(nonceRaw);
+      return { agentOwner, newOwner, nonce, chainSlug, scope };
+    }
+
+    function ensureSdk() {
+      if (!window.SpectreDemo || !window.SpectreDemo.Personhood) {
+        throw new Error("SpectreDemo.Personhood not loaded. Rebuild the demo bundle.");
+      }
+      return window.SpectreDemo.Personhood;
+    }
+
+    $("compute").addEventListener("click", () => {
+      try {
+        const { agentOwner, newOwner, nonce, chainSlug, scope } = readInputs();
+        const P = ensureSdk();
+        fill(signalOut, P.computeSignal(agentOwner, newOwner, nonce));
+        fill(snippetOut, P.renderZKPassportSnippet(agentOwner, newOwner, nonce, chainSlug, scope));
+      } catch (e) {
+        error(signalOut, e.message);
+        reset(snippetOut, "Fill inputs, then compute.");
+      }
+    });
+
+    $("clear").addEventListener("click", () => {
+      ["agentOwner", "newOwner", "nonce", "proofJson", "uniqueId"].forEach((id) => {
+        $(id).value = "";
+      });
+      reset(signalOut, "Signal will appear here once inputs are filled.");
+      reset(snippetOut, 'Fill in the inputs above, then click "Compute signal" to see the snippet.');
+      reset(proofDataOut, "Package the proof to see the bytes.");
+      reset(nullifierOut, "Package the proof to see the nullifier.");
+    });
+
+    $("pack").addEventListener("click", () => {
+      try {
+        const P = ensureSdk();
+        const proofRaw = $("proofJson").value.trim();
+        const uniqueId = $("uniqueId").value.trim();
+        if (!proofRaw) throw new Error("proofs JSON is required");
+        if (!uniqueId) throw new Error("uniqueIdentifier is required");
+
+        const parsed = JSON.parse(proofRaw);
+        // Coerce validityPeriodInSeconds to bigint if it came in as a number or string.
+        if (parsed.serviceConfig && typeof parsed.serviceConfig.validityPeriodInSeconds !== "bigint") {
+          parsed.serviceConfig.validityPeriodInSeconds = BigInt(parsed.serviceConfig.validityPeriodInSeconds);
+        }
+
+        fill(proofDataOut, P.encodeProofData(parsed));
+        fill(nullifierOut, P.toPersonhoodNullifier(uniqueId).toString());
+      } catch (e) {
+        error(proofDataOut, e.message);
+        reset(nullifierOut, "Fix the input above.");
+      }
+    });
+  </script>
+</body>
+
+</html>
