@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Spectre Protocol · Trustless recovery for on-chain AI agents</title>
   <meta name="description"
-    content="Spectre is the trustless recovery layer for on-chain AI agents. ZK email proofs, World ID, guardian recovery, and time-locked safety windows. No trusted third party." />
+    content="Spectre is the trustless recovery layer for on-chain AI agents. ZK email proofs, pluggable personhood, guardian recovery, and time-locked safety windows. No trusted third party." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1344,12 +1344,12 @@
       <div class="section-body modes-grid reveal">
         <div class="mode-card">
           <div class="mode-num-row"><span>01</span></div>
-          <h3 class="mode-title">ZK Email + World ID</h3>
+          <h3 class="mode-title">Email + Personhood</h3>
           <p class="mode-desc">
-            ZK proof of DKIM signature. World ID proves the initiator is human. Both
-            proofs verified on-chain.
+            ZK proof of DKIM signature plus a personhood proof from an approved adapter.
+            Both verified on-chain.
           </p>
-          <span class="mode-badge">ZK + WORLD ID</span>
+          <span class="mode-badge">EMAIL + PERSONHOOD</span>
         </div>
         <div class="mode-card">
           <div class="mode-num-row"><span>02</span></div>
@@ -1371,10 +1371,10 @@
         </div>
         <div class="mode-card">
           <div class="mode-num-row"><span>04</span></div>
-          <h3 class="mode-title">Humanity proof (pluggable)</h3>
+          <h3 class="mode-title">Personhood adapters (pluggable)</h3>
           <p class="mode-desc">
-            World ID today, any ZK humanity proof tomorrow. Identity layer is intentionally
-            modular.
+            Any IPersonhoodVerifier via a governed allowlist. ZK Passport for v1. Adapters
+            proposed and confirmed through a timelock.
           </p>
           <span class="mode-badge">PLUGGABLE</span>
         </div>
@@ -1410,8 +1410,10 @@
           <div class="step-body">
             <h3>Initiate recovery</h3>
             <p>
-              Send a recovery email with the new key + nonce in the body. Generate a ZK
-              proof of the DKIM signature. Verify with World ID. Submit both proofs on-chain.
+              Send a recovery email with <span class="mono">spectre:&lt;newKey&gt;:&lt;nonce&gt;</span>
+              in the Subject header. Generate a ZK proof of the DKIM signature over that
+              header. Produce a personhood proof via the registered adapter. Submit both
+              proofs on-chain.
             </p>
           </div>
         </div>
@@ -1430,18 +1432,18 @@
       <div class="code-block reveal">
         <div class="code-bar">
           <span class="code-bar-dots"><span></span><span></span><span></span></span>
-          <span class="code-bar-title">email + world id recovery flow</span>
+          <span class="code-bar-title">email + personhood recovery flow</span>
         </div>
-        <div class="code-body">Owner sends email: body = <span class="accent">{newKey}:{nonce}</span>
+        <div class="code-body">Owner sends email: <span class="accent">Subject: spectre:{newKey}:{nonce}</span>
           |
           v
           Relayer parses .eml, extracts <span class="accent">DKIM signature</span>
           |
           v
-          Noir circuit proves DKIM valid + email hash matches + body = recovery params
+          Noir circuit proves DKIM valid + email hash matches + Subject contains recovery params
           |
           v
-          Owner scans <span class="accent">World ID</span> QR (proves human, binds signal to recovery)
+          Owner produces <span class="accent">personhood proof</span> via the registered adapter (binds signal to this recovery)
           |
           v
           <span class="accent">SpectreRegistry.initiateRecovery()</span> verifies both proofs on-chain
@@ -1464,8 +1466,8 @@
         <span class="section-tag">Architecture</span>
         <h2 class="section-h2">Four components. One protocol.</h2>
         <p class="section-sub">
-          A Noir ZK circuit, Solidity contracts, a TypeScript relayer, and a World ID
-          frontend. Each independently verifiable.
+          A Noir ZK circuit, Solidity contracts, a TypeScript relayer, and a TypeScript
+          SDK. Each independently verifiable.
         </p>
       </div>
 
@@ -1495,11 +1497,11 @@
           </p>
         </div>
         <div class="arch-card">
-          <div class="arch-path">world-id-ui/</div>
-          <h3 class="arch-title">World ID frontend</h3>
+          <div class="arch-path">packages/sdk/</div>
+          <h3 class="arch-title">TypeScript SDK</h3>
           <p class="arch-desc">
-            React UI for World ID proof generation. Signal binds the proof to the specific
-            recovery (owner + newOwner + nonce).
+            Registry client, prover selection (browser or hosted), notify subscriptions,
+            and personhood encoding helpers. What integrators embed to add recovery.
           </p>
         </div>
       </div>
@@ -1524,10 +1526,11 @@
         </div>
         <div class="proof-card">
           <div class="proof-icon">{ }</div>
-          <div class="proof-title">Body content binding</div>
+          <div class="proof-title">Subject binding</div>
           <p class="proof-desc">
-            Email body must contain exactly <span class="mono">{recovery_key}:{nonce}</span>, binding
-            the proof to one specific recovery attempt.
+            The email Subject header must be exactly
+            <span class="mono">spectre:{recovery_key}:{nonce}</span>, binding the proof to
+            one specific recovery attempt. Body is unverified by design.
           </p>
         </div>
         <div class="proof-card">
@@ -1569,7 +1572,7 @@
             </tr>
             <tr>
               <td>npm run initiate</td>
-              <td>Initiate Email + World ID recovery</td>
+              <td>Initiate Email + Personhood recovery</td>
             </tr>
             <tr>
               <td>npm run cancel</td>
@@ -1621,12 +1624,6 @@
           <span class="api-desc">Verify a proof against public inputs and verification key.</span>
         </div>
         <div class="api-item">
-          <span class="api-method post">POST</span>
-          <span class="api-path">/worldid-context</span>
-          <span class="api-desc">Get a signed RP context for the World ID widget. Required before opening the IDKit
-            modal.</span>
-        </div>
-        <div class="api-item">
           <span class="api-method get">GET</span>
           <span class="api-path">/health</span>
           <span class="api-desc">Health check. Returns <span class="mono">{ ok: true }</span>.</span>
@@ -1658,7 +1655,7 @@
           <div class="status-left">
             <h4>Smart contracts</h4>
             <div class="status-detail">SpectreRegistry · 3 recovery modes · timelock · nonce replay protection ·
-              UltraHonk verifier · World ID integration · 26 test cases</div>
+              UltraHonk verifier · pluggable personhood via IPersonhoodVerifier · 142 test cases</div>
           </div>
           <span class="status-badge done">✓ Complete</span>
         </div>
@@ -1672,17 +1669,17 @@
         </div>
         <div class="status-item">
           <div class="status-left">
-            <h4>World ID integration</h4>
-            <div class="status-detail">IDKit v4 widget · RP context signing · Semaphore proof generation · signal
-              binding (owner + newOwner + nonce)</div>
+            <h4>Personhood layer</h4>
+            <div class="status-detail">IPersonhoodVerifier interface · PersonhoodRegistry (propose + confirm timelock allowlist) ·
+              MockPersonhoodAdapter for testnet · ZKPassportAdapter for v1 production</div>
           </div>
           <span class="status-badge done">✓ Complete</span>
         </div>
         <div class="status-item">
           <div class="status-left">
-            <h4>World ID v4 upgrade</h4>
-            <div class="status-detail">Migrate from v3 Semaphore proofs to v4 compressed Groth16 when World ID 4.0 exits
-              preview</div>
+            <h4>ZK Passport on Base Sepolia</h4>
+            <div class="status-detail">Adapter is deployment-ready. Waiting on ZK Passport to deploy RootVerifier
+              to Base Sepolia (already live on Ethereum Sepolia and Base mainnet)</div>
           </div>
           <span class="status-badge planned">Planned</span>
         </div>
@@ -1717,15 +1714,15 @@
           <tbody>
             <tr>
               <td>SpectreRegistry</td>
-              <td>0xc8458d4B3b67a9a9643d6818dC73D2a10723C551</td>
+              <td>0x9cE6Fa1A495b443e236D041f935Bacb5581BbC6B</td>
             </tr>
             <tr>
               <td>HonkVerifier</td>
               <td>0x8a4C0AdAFe442A9c9E7Aaf7815bD92fd3F961917</td>
             </tr>
             <tr>
-              <td>World ID Router</td>
-              <td>0x42FF98C4E85212a5D31358ACbFe76a621b784Fac</td>
+              <td>PersonhoodRegistry</td>
+              <td>(propose + confirm allowlist; see repo README for latest address)</td>
             </tr>
           </tbody>
         </table>
