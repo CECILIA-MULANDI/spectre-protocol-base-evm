@@ -153,3 +153,28 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+/* Buttons and navbar links have their own hover states (color/background),
+   so suppress the global hover underline for them. */
+.navbar a:hover,
+.navbar__link:hover,
+.button:hover {
+  text-decoration: none;
+}
+
+/**
+ * Doc pages: left-anchor content, keep TOC on the right.
+ * Container fills more horizontal space so content hugs the sidebar;
+ * the prose column is capped at 760px so long-form reading stays comfortable.
+ * Mobile is unaffected (Docusaurus hides the TOC below 997px).
+ */
+@media (min-width: 997px) {
+  [class*='docMainContainer_'] > .container {
+    max-width: none;
+    padding-inline: 2.5rem;
+  }
+
+  .theme-doc-markdown {
+    max-width: 760px;
+  }
+}
