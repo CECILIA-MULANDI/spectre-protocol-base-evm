@@ -54,7 +54,6 @@ All three modes are implemented and tested under the same timelock + cancel wind
 | Email confirmation UX gate (one-time-code via Resend) | Live in relayer |
 | Notification daemon (watcher + webhook dispatcher, SQLite-backed) | Live in relayer |
 | Hosted prover API | Live at `spectre-relayer.onrender.com` |
-| Browser prover demo | Live at `spectreprotocol.xyz/test-browser-prover.html` |
 
 ### Security posture
 
