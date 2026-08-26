@@ -33,7 +33,7 @@ import { SpectreClient } from "@spectre-protocol/sdk";
 
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1",
+  registryAddress: "0x9cE6Fa1A495b443e236D041f935Bacb5581BbC6B",
   privateKey: process.env.PRIVATE_KEY as `0x${string}`,
   prover: { type: "hosted", url: "https://relayer.spectreprotocol.xyz" },
 });
@@ -92,12 +92,12 @@ const eml = await readFile(emlPath);
 
 ## Step 4: Produce a personhood proof
 
-Personhood is the second factor that pairs with the email. Spectre's `IPersonhoodVerifier` interface is adapter-agnostic — the registry calls whichever adapter the agent registered with and tracks the returned nullifier in `usedNullifiers` to prevent replay.
+Personhood is the second factor that pairs with the email. Spectre's `IPersonhoodVerifier` interface is adapter-agnostic: the registry calls whichever adapter the agent registered with and tracks the returned nullifier in `usedNullifiers` to prevent replay.
 
 What you pass to the SDK is two opaque values:
 
-- **`personhoodNullifier`** (`bigint`) — a per-identity value the registry stores in `usedNullifiers`. Must not collide with one already burned for any agent.
-- **`personhoodProof`** (`0x${string}`) — opaque bytes the adapter decodes. Format is adapter-specific.
+- **`personhoodNullifier`** (`bigint`): a per-identity value the registry stores in `usedNullifiers`. Must not collide with one already burned for any agent.
+- **`personhoodProof`** (`0x${string}`): opaque bytes the adapter decodes. Format is adapter-specific.
 
 ### Testnet: MockPersonhoodAdapter
 
@@ -127,7 +127,7 @@ The adapter is the next planned integration; for now the testnet path uses the m
 
 ### Other adapters
 
-`PersonhoodRegistry` is a governed allowlist. Any contract implementing `IPersonhoodVerifier` can be proposed by the registry's `updater`, confirmed after the propose timelock, and then registered against by any agent via `registerWithAdapter()`. Self.xyz, anonymous credentials, and other personhood schemes all fit the same shape — proof bytes in, identity-derived nullifier out.
+`PersonhoodRegistry` is a governed allowlist. Any contract implementing `IPersonhoodVerifier` can be proposed by the registry's `updater`, confirmed after the propose timelock, and then registered against by any agent via `registerWithAdapter()`. Self.xyz, anonymous credentials, and other personhood schemes all fit the same shape: proof bytes in, identity-derived nullifier out.
 
 ## Step 5: Submit the recovery
 
@@ -162,9 +162,9 @@ If any check fails, the transaction reverts and nothing changes on chain. Note t
 
 ```ts
 const status = await client.getRecoveryStatus(agentOwner);
-// status.executeAfterBlock — block at or after which executeRecovery becomes callable
-// status.pendingOwner — the newOwner that's been staged
-// status.mode — "EmailPersonhood"
+// status.executeAfterBlock: block at or after which executeRecovery becomes callable
+// status.pendingOwner: the newOwner that's been staged
+// status.mode: "EmailPersonhood"
 ```
 
 Display a countdown to the user. The cancel window is the agent's `timelockBlocks` (set at registration). On Base Sepolia the floor is 10 blocks ≈ 20 seconds. On mainnet the default is ~24 hours.

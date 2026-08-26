@@ -22,7 +22,7 @@ import { SpectreClient } from "@spectre-protocol/sdk";
 
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1", // SpectreRegistry on Base Sepolia
+  registryAddress: "0x9cE6Fa1A495b443e236D041f935Bacb5581BbC6B", // SpectreRegistry on Base Sepolia
   privateKey: "0x...", // your owner key
   prover: {
     type: "hosted",

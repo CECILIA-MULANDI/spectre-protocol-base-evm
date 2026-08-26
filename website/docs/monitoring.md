@@ -24,7 +24,7 @@ import { SpectreClient } from "@spectre-protocol/sdk";
 
 const client = new SpectreClient({
   rpcUrl: "https://sepolia.base.org",
-  registryAddress: "0xBe53383054Fda41A9F71b8593384144c367b01A1",
+  registryAddress: "0x9cE6Fa1A495b443e236D041f935Bacb5581BbC6B",
   privateKey: process.env.PRIVATE_KEY as `0x${string}`,
   prover: { type: "hosted", url: "https://relayer.spectreprotocol.xyz" },
 });
@@ -98,7 +98,7 @@ import { baseSepolia } from "viem/chains";
 const client = createPublicClient({ chain: baseSepolia, transport: http() });
 
 const unwatch = client.watchContractEvent({
-  address: "0xBe53383054Fda41A9F71b8593384144c367b01A1",
+  address: "0x9cE6Fa1A495b443e236D041f935Bacb5581BbC6B",
   event: parseAbiItem(
     "event RecoveryInitiated(address indexed owner, address indexed newOwner, uint64 executeAfterBlock, uint8 mode)"
   ),
