@@ -7,9 +7,10 @@ slug: /why-spectre
 
 Recovery for an autonomous on-chain agent isn't a "small contract" problem. It's a stack:
 
-- a ZK circuit that proves a DKIM-signed email without revealing it,
+- three independent recovery modes (backup wallet, social guardians, email + personhood) so losing any one path doesn't end the agent,
+- an adapter framework for personhood proofs, governed so new adapters land without redeploying the protocol,
+- a ZK circuit that proves a DKIM signature over a subject-bound recovery message without revealing the email,
 - a governed registry of mail-provider RSA keys that has to be kept current,
-- an adapter framework for personhood proofs,
 - the timelock, nonce, and nullifier interlock that makes the cancel window safe,
 - monitoring infrastructure that turns "anyone can initiate" into "you actually have time to react."
 

@@ -41,11 +41,13 @@ There are three recovery modes. Set them up independently and use whichever stil
 
 | Mode | Trigger | Proof material |
 | --- | --- | --- |
-| **Email + Personhood** | Anyone with the owner's email plus a personhood proof | DKIM ZK proof and personhood proof |
 | **Backup wallet** | A pre-registered backup address | A transaction from the backup wallet |
 | **Social (M-of-N)** | Guardian consensus | M independent guardian approvals |
+| **Email + Personhood** | Anyone with the owner's email plus a personhood proof | ZK proof of a DKIM signature over a binding subject, plus a personhood proof |
 
 Every successful recovery passes through a **timelock**. The current owner can cancel during the timelock window if the recovery is fraudulent.
+
+Email + Personhood is the always-armed default: an operator who forgets to configure Backup or Social still has one universal recovery path. For agents holding real value, arm all three.
 
 ## What Spectre is *not*
 
