@@ -15,7 +15,7 @@ A public record of what Spectre has shipped, what's in flight, and what's delibe
 | ZK circuit + Solidity verifier | Shipped, VK pinned to deployed verifier |
 | TypeScript SDK (`@spectre-protocol/sdk`) | Published, refactor in progress for 0.2.0 |
 | Relayer (prover API + notify daemon) | Shipped, hosted at `spectre-relayer.onrender.com` |
-| Documentation site | Live at `spectreprotocol.xyz` |
+| Documentation site | Live at `docs.spectreprotocol.xyz` |
 | Base Sepolia testnet | Live, full E2E validated 2026-06-25 |
 | Base Mainnet | Planned, gated on personhood adapter |
 | Production personhood adapter (ZK Passport) | Planned, next major milestone |
