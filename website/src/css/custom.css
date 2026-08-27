@@ -99,6 +99,18 @@
   --ifm-footer-title-color: var(--spectre-text);
 }
 
+/**
+ * On ultra-wide screens, cap the whole docs layout (sidebar + main + TOC)
+ * as a single bounded block centered in the viewport. Matches the Stripe /
+ * Mintlify pattern: full-width navbar + footer, bounded content in the middle.
+ */
+@media (min-width: 1600px) {
+  [class*='docRoot_'] {
+    max-width: 1600px;
+    margin-inline: auto;
+  }
+}
+
 /* Hero: drop the bright primary block, use the page bg with subtle bottom border. */
 .hero--primary {
   background-color: var(--spectre-bg);
@@ -162,19 +174,3 @@ a:hover {
   text-decoration: none;
 }
 
-/**
- * Doc pages: left-anchor content, keep TOC on the right.
- * Container fills more horizontal space so content hugs the sidebar;
- * the prose column is capped at 760px so long-form reading stays comfortable.
- * Mobile is unaffected (Docusaurus hides the TOC below 997px).
- */
-@media (min-width: 997px) {
-  [class*='docMainContainer_'] > .container {
-    max-width: none;
-    padding-inline: 2.5rem;
-  }
-
-  .theme-doc-markdown {
-    max-width: 760px;
-  }
-}
