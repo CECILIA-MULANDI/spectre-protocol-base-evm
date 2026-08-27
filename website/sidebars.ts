@@ -4,12 +4,24 @@ const sidebars: SidebarsConfig = {
   docsSidebar: [
     "intro",
     "why-spectre",
-    "quickstart",
-    "recovery-modes",
-    "recovering-with-email",
-    "monitoring",
-    "threat-model",
-    "roadmap",
+    {
+      type: "category",
+      label: "Get Started",
+      collapsed: false,
+      items: ["quickstart", "recovery-modes", "recovering-with-email"],
+    },
+    {
+      type: "category",
+      label: "Operate",
+      collapsed: false,
+      items: ["monitoring", "threat-model"],
+    },
+    {
+      type: "category",
+      label: "Reference",
+      collapsed: false,
+      items: ["roadmap"],
+    },
   ],
 };
 
